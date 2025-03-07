@@ -7,6 +7,7 @@ import { EventBus } from "../../core/EventBus";
 import { TransformHandler } from "./TransformHandler";
 import { Layer } from "./layers/Layer";
 import { EventsDisplay } from "./layers/EventsDisplay";
+import { AllianceDisplay } from "./layers/AllianceDisplay";
 import { RadialMenu } from "./layers/RadialMenu";
 import { EmojiTable } from "./layers/EmojiTable";
 import { Leaderboard } from "./layers/Leaderboard";
@@ -83,6 +84,16 @@ export function createRenderer(
   eventsDisplay.game = game;
   eventsDisplay.clientID = clientID;
 
+  const allianceDisplay = document.querySelector(
+    "alliance-display",
+  ) as AllianceDisplay;
+  if (!(allianceDisplay instanceof AllianceDisplay)) {
+    consolex.error("alliance display not found");
+  }
+  allianceDisplay.eventBus = eventBus;
+  allianceDisplay.game = game;
+  allianceDisplay.clientID = clientID;
+
   const playerInfo = document.querySelector(
     "player-info-overlay",
   ) as PlayerInfoOverlay;
@@ -130,6 +141,7 @@ export function createRenderer(
     new UILayer(game, eventBus, clientID, transformHandler),
     new NameLayer(game, transformHandler, clientID),
     eventsDisplay,
+    allianceDisplay,
     buildMenu,
     new RadialMenu(
       eventBus,

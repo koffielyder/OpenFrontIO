@@ -43,6 +43,12 @@ interface AllianceEvent {
   focusID?: number;
 }
 
+interface AllianceRequest extends AllianceEvent {
+  onFocus?: () => void;
+  onAccept?: () => void;
+  onReject?: () => void;
+}
+
 @customElement("alliance-display")
 export class AllianceDisplay extends LitElement implements Layer {
   public game: GameView;
@@ -56,6 +62,7 @@ export class AllianceDisplay extends LitElement implements Layer {
   private _allianceDisplayHidden = true;
   private _shownOnInit = false;
   private allianceEvents: AllianceEvent[] = [];
+  private allianceRequests: AllianceRequest[] = [];
 
   private updateMap = new Map([
     [GameUpdateType.AllianceRequest, (u) => this.onAllianceRequestEvent(u)],
@@ -87,6 +94,10 @@ export class AllianceDisplay extends LitElement implements Layer {
     if (this.game.ticks() % 10 == 0) {
       this.updateAllianceDisplay();
     }
+
+    if (this.game.ticks() % 30 == 0) {
+      this.clearExpiredEvents();
+    }
   }
 
   private addEvent(event: AllianceEvent) {
@@ -99,6 +110,27 @@ export class AllianceDisplay extends LitElement implements Layer {
       ...this.allianceEvents.slice(0, index),
       ...this.allianceEvents.slice(index + 1),
     ];
+  }
+
+  private addAllianceRequest(request: AllianceRequest) {
+    this.allianceRequests = [...this.allianceRequests, request];
+    this.requestUpdate();
+  }
+
+  private removeAllianceRequest(index: number) {
+    this.allianceRequests = [
+      ...this.allianceRequests.slice(0, index),
+      ...this.allianceRequests.slice(index + 1),
+    ];
+  }
+
+  private clearExpiredEvents() {
+    const curTicks: Tick = this.game.ticks();
+
+    this.allianceEvents = this.allianceEvents.filter((event) => {
+      if (event.duration == null) event.duration = 150;
+      return curTicks < event.duration + event.createdAt;
+    });
   }
 
   private updateAllianceDisplay() {
@@ -134,41 +166,23 @@ export class AllianceDisplay extends LitElement implements Layer {
     const recipient = this.game.playerBySmallID(
       update.recipientID,
     ) as PlayerView;
-
-    this.addEvent({
+    this.addAllianceRequest({
       description: `${requestor.name()} requests an alliance!`,
-      buttons: [
-        {
-          text: "Focus",
-          className: "btn-gray",
-          action: () => this.eventBus.emit(new GoToPlayerEvent(requestor)),
-          preventClose: true,
-        },
-        {
-          text: "Accept",
-          className: "btn",
-          action: () =>
-            this.eventBus.emit(
-              new SendAllianceReplyIntentEvent(requestor, recipient, true),
-            ),
-        },
-        {
-          text: "Reject",
-          className: "btn-info",
-          action: () =>
-            this.eventBus.emit(
-              new SendAllianceReplyIntentEvent(requestor, recipient, false),
-            ),
-        },
-      ],
-      highlight: true,
       type: MessageType.INFO,
       createdAt: this.game.ticks(),
+      onFocus: () => this.emitGoToPlayerEvent(requestor),
+      onAccept: () =>
+        this.eventBus.emit(
+          new SendAllianceReplyIntentEvent(requestor, recipient, true),
+        ),
+      onReject: () =>
+        this.eventBus.emit(
+          new SendAllianceReplyIntentEvent(requestor, recipient, false),
+        ),
       onDelete: () =>
         this.eventBus.emit(
           new SendAllianceReplyIntentEvent(requestor, recipient, false),
         ),
-      priority: 0,
       duration: 150,
       focusID: update.requestorID,
     });
@@ -193,6 +207,7 @@ export class AllianceDisplay extends LitElement implements Layer {
       highlight: true,
       createdAt: this.game.ticks(),
       focusID: update.request.recipientID,
+      duration: update.accepted ? 50 : 150,
     });
   }
 
@@ -211,6 +226,7 @@ export class AllianceDisplay extends LitElement implements Layer {
         highlight: true,
         createdAt: this.game.ticks(),
         focusID: update.betrayedID,
+        duration: 100,
       });
     } else if (betrayed === myPlayer) {
       this.addEvent({
@@ -219,6 +235,7 @@ export class AllianceDisplay extends LitElement implements Layer {
         highlight: true,
         createdAt: this.game.ticks(),
         focusID: update.traitorID,
+        duration: 150,
       });
     }
   }
@@ -260,11 +277,11 @@ export class AllianceDisplay extends LitElement implements Layer {
       highlight: true,
       createdAt: this.game.ticks(),
       focusID: event.targetID,
+      duration: 300,
     });
   }
 
   private handleRowClick(player: PlayerView) {
-    this.emitGoToPlayerEvent(player);
     this.selectPlayer(player);
   }
 
@@ -284,15 +301,15 @@ export class AllianceDisplay extends LitElement implements Layer {
   private getMessageTypeClasses(type: MessageType): string {
     switch (type) {
       case MessageType.SUCCESS:
-        return "text-green-300";
+        return "bg-green-600/50";
       case MessageType.INFO:
-        return "text-gray-200";
+        return "bg-blue-600/50";
       case MessageType.WARN:
-        return "text-yellow-300";
+        return "bg-yellow-600/50";
       case MessageType.ERROR:
-        return "text-red-300";
+        return "bg-red-600/50";
       default:
-        return "text-white";
+        return "bg-gray-600/50";
     }
   }
   private getEventDescription(
@@ -307,132 +324,130 @@ export class AllianceDisplay extends LitElement implements Layer {
   shouldTransform(): boolean {
     return false;
   }
+  static styles = css`
+    @keyframes slide-in {
+      from {
+        transform: translateY(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    .animate-slide-in {
+      animation: slide-in 0.3s ease-out;
+    }
+  `;
 
   renderAllianceEvents() {
     return html`
-      <table
-        class="w-full border-collapse text-white shadow-lg lg:text-xl text-xs"
-        style="pointer-events: auto;"
-      >
-        <tbody>
-          ${this.allianceEvents.map(
-            (event, index) => html`
-              <tr
-                class="border-b border-opacity-0 ${this.getMessageTypeClasses(
-                  event.type,
-                )}"
-              >
-                <td class="lg:p-3 p-1 text-left">
-                  ${event.focusID
-                    ? html`<button
-                        @click=${() => {
-                          this.emitGoToPlayerEvent(event.focusID);
-                        }}
-                      >
-                        ${this.getEventDescription(event)}
-                      </button>`
-                    : this.getEventDescription(event)}
-                  ${event.buttons
-                    ? html`
-                        <div class="flex flex-wrap gap-1.5 mt-1">
-                          ${event.buttons.map(
-                            (btn) => html`
-                              <button
-                                class="inline-block px-3 py-1 text-white rounded text-sm cursor-pointer transition-colors duration-300
-                        ${btn.className.includes("btn-info")
-                                  ? "bg-blue-500 hover:bg-blue-600"
-                                  : btn.className.includes("btn-gray")
-                                    ? "bg-gray-500 hover:bg-gray-600"
-                                    : "bg-green-600 hover:bg-green-700"}"
-                                @click=${() => {
-                                  btn.action();
-                                  if (!btn.preventClose) {
-                                    this.removeEvent(index);
-                                  }
-                                  this.requestUpdate();
-                                }}
-                              >
-                                ${btn.text}
-                              </button>
-                            `,
-                          )}
-                        </div>
-                      `
-                    : ""}
-                </td>
-              </tr>
-            `,
-          )}
-        </tbody>
-      </table>
-    `;
-  }
-
-  render() {
-    return html`
-      <div
-        class="rounded-md bg-black bg-opacity-60 relative max-h-[30vh] flex flex-col overflow-y-auto lg:bottom-2.5 lg:right-2.5 z-50 lg:max-w-[30vw] lg:w-max pointer-events-auto text-white min-w-96"
-      >
-        <button
-          class="flex justify-between items-center p-2 bg-black sticky top-0 left-0"
-          @click=${() => this.toggleAllianceDisplay()}
-        >
-          <span>Alliances (${this.allies.length})</span>
-          <span> ${this._allianceDisplayHidden ? "Show" : "Hide"} </span>
-        </button>
-        ${this.renderAllianceEvents()}
-        <div
-          class="${this._allianceDisplayHidden ? "hidden" : ""}"
-          @contextmenu=${(e) => e.preventDefault()}
-        >
-          <div class="flex flex-col w-full">
-            ${this.allies.map(
-              (player) => html`
-                <div
-                  class="relative flex flex-col border-b border-white last:border-b-0"
-                >
-                  <button
-                    @click=${() => this.handleRowClick(player.player)}
-                    class="text-white h-10 px-2 text-left ${this
-                      .selectedPlayer == player.player
-                      ? "bg-blue-500/50"
-                      : ""}"
-                  >
-                    ${unsafeHTML(player.name)}
-                  </button>
+      <div class="relative z-10 flex w-full flex-col py-2">
+        <div class="bg-shadow relative z-20">
+          <div
+            class="flex flex-col gap-3 p-4 drop-shadow-[0_4px_6px_rgba(0,0,0,0.5)]"
+          >
+            <div class="flex flex-col gap-3 p-4 max-h-[30vh]">
+              ${this.allianceEvents.map(
+                (event, index) => html`
                   <div
-                    class="h-10 w-full inset-0 flex flex-wrap z-40 ${this
-                      .selectedPlayer == player.player
-                      ? "active"
-                      : "hidden"}"
+                    class="rounded-lg ${this.getMessageTypeClasses(
+                      event.type,
+                    )} bg-gradient-to-bl from-black/20 to-black/0 p-3 text-sm text-white shadow-lg animate-slide-in"
                   >
+                    ${this.getEventDescription(event)}
+                  </div>
+                `,
+              )}
+            </div>
+            ${this.allianceRequests.map(
+              (request, index) => html`
+                <div
+                  class="rounded-lg bg-yellow-300/50 text-sm text-white drop-shadow-md animate-slide-in flex flex-col overflow-hidden"
+                >
+                  <p
+                    class="font-semibold py-3 text-center bg-gradient-to-bl bg-yellow-500/75 px-4 text-lg"
+                  >
+                    ${this.getEventDescription(request)}
+                  </p>
+                  <div class="flex flex-wrap gap-4 p-4 justify-evenly items">
                     <button
-                      class="w-1/4 h-full bg-gray-600"
-                      @click=${() => this.emitGoToPlayerEvent(player.player)}
+                      @click=${request.onFocus}
+                      class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg text-base font-semibold flex items-center justify-center w-full shadow-md"
                     >
-                      Focus
+                      🔍 Focus
                     </button>
-                    <button
-                      class="w-1/4 h-full bg-blue-600"
-                      @click=${() => {
-                        this.selectedPlayer = null;
-                      }}
-                    >
-                      Troops
-                    </button>
-                    <button class="w-1/4 h-full bg-green-600">Send</button>
-                    <button
-                      class="w-1/4 h-full bg-red-600"
-                      @click=${() => this.selectPlayer(null)}
-                    >
-                      Close
-                    </button>
+                    <div class="flex items-stretch w-full gap-4">
+                      <button
+                        @click=${request.onAccept}
+                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg text-base font-semibold flex items-center justify-center shadow-md flex-grow"
+                      >
+                        ✅ Accept
+                      </button>
+                      <button
+                        @click=${request.onReject}
+                        class="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg text-base font-semibold flex items-center justify-center shadow-md flex-grow"
+                      >
+                        ❌ Reject
+                      </button>
+                    </div>
                   </div>
                 </div>
               `,
             )}
           </div>
         </div>
+      </div>
+    `;
+  }
+
+  renderAllianceOverview() {
+    return html`
+      <div
+        class="relative z-20 rounded-lg bg-gray-800/80 p-4 gap-4 flex flex-col max-h-[30vh] overflow-y-auto"
+      >
+        <button
+          class="flex justify-between items-center sticky top-0 left-0"
+          @click=${() => this.toggleAllianceDisplay()}
+        >
+          <h2 class="text-lg font-semibold">
+            Alliances (${this.allies.length})
+          </h2>
+          <span> ${this._allianceDisplayHidden ? "Show" : "Hide"} </span>
+        </button>
+        <ul
+          class="space-y-2 text-sm ${this._allianceDisplayHidden
+            ? "hidden"
+            : ""}"
+        >
+          ${this.allies.map(
+            (player) => html`
+              <li
+                class="rounded bg-green-700 ${this.selectedPlayer ==
+                player.player
+                  ? "bg-blue-500/50"
+                  : ""} p-2"
+              >
+                <button
+                  @click=${() => this.handleRowClick(player.player)}
+                  class="text-white w-full"
+                >
+                  ${unsafeHTML(player.name)}
+                </button>
+              </li>
+            `,
+          )}
+        </ul>
+      </div>
+    `;
+  }
+
+  render() {
+    return html`
+      <div
+        class="rounded-md relative flex flex-col overflow-y-auto lg:bottom-2.5 lg:right-2.5 z-50 lg:max-w-[30vw] lg:w-max pointer-events-auto text-white min-w-96"
+      >
+        ${this.renderAllianceEvents()} ${this.renderAllianceOverview()}
       </div>
     `;
   }

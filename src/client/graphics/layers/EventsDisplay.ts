@@ -6,6 +6,7 @@ import {
   MessageType,
   PlayerType,
   Tick,
+  UnitType,
 } from "../../../core/game/Game";
 import {
   AttackUpdate,
@@ -28,9 +29,9 @@ import { unsafeHTML, UnsafeHTMLDirective } from "lit/directives/unsafe-html.js";
 import { DirectiveResult } from "lit/directive.js";
 
 import { onlyImages, sanitize } from "../../../core/Util";
-import { GameView, PlayerView } from "../../../core/game/GameView";
+import { GameView, PlayerView, UnitView } from "../../../core/game/GameView";
 import { renderTroops } from "../../Utils";
-import { GoToPlayerEvent } from "./Leaderboard";
+import { GoToPlayerEvent, GoToUnitEvent } from "./Leaderboard";
 
 interface Event {
   description: string;
@@ -60,6 +61,7 @@ export class EventsDisplay extends LitElement implements Layer {
   private events: Event[] = [];
   @state() private incomingAttacks: AttackUpdate[] = [];
   @state() private outgoingAttacks: AttackUpdate[] = [];
+  @state() private outgoingBoats: UnitView[] = [];
   @state() private _hidden: boolean = false;
   @state() private newEvents: number = 0;
 
@@ -81,6 +83,7 @@ export class EventsDisplay extends LitElement implements Layer {
     this.events = [];
     this.incomingAttacks = [];
     this.outgoingAttacks = [];
+    this.outgoingBoats = [];
   }
 
   init() {}
@@ -123,6 +126,11 @@ export class EventsDisplay extends LitElement implements Layer {
     this.outgoingAttacks = myPlayer
       .outgoingAttacks()
       .filter((a) => a.targetID != 0);
+
+    this.outgoingBoats = myPlayer
+      .units()
+      .filter((u) => u.type() === UnitType.TransportShip);
+    console.log("loan", this.outgoingBoats);
 
     this.requestUpdate();
   }
@@ -176,6 +184,10 @@ export class EventsDisplay extends LitElement implements Layer {
     const attacker = this.game.playerBySmallID(attackerID) as PlayerView;
     if (!attacker) return;
     this.eventBus.emit(new GoToPlayerEvent(attacker));
+  }
+
+  emitGoToUnitEvent(unit: UnitView) {
+    this.eventBus.emit(new GoToUnitEvent(unit));
   }
 
   onEmojiMessageEvent(update: EmojiUpdate) {
@@ -304,11 +316,38 @@ export class EventsDisplay extends LitElement implements Layer {
     `;
   }
 
+  private renderBoats() {
+    if (this.outgoingBoats.length === 0) {
+      return html``;
+    }
+
+    return html`
+      ${this.outgoingBoats.length > 0
+        ? html`
+            <tr class="border-t border-gray-700">
+              <td
+                class="lg:p-3 p-1 text-left text-blue-400 grid grid-cols-3 gap-2"
+              >
+                ${this.outgoingBoats.map(
+                  (boats) => html`
+                    <button @click=${() => this.emitGoToUnitEvent(boats)}>
+                      Boat: ${renderTroops(boats.troops())}
+                    </button>
+                  `,
+                )}
+              </td>
+            </tr>
+          `
+        : ""}
+    `;
+  }
+
   render() {
     if (
       this.events.length === 0 &&
       this.incomingAttacks.length === 0 &&
-      this.outgoingAttacks.length === 0
+      this.outgoingAttacks.length === 0 &&
+      this.outgoingBoats.length === 0
     ) {
       return html``;
     }
@@ -409,7 +448,7 @@ export class EventsDisplay extends LitElement implements Layer {
                   </tr>
                 `,
               )}
-              ${this.renderAttacks()}
+              ${this.renderAttacks()} ${this.renderBoats()}
             </tbody>
           </table>
         </div>

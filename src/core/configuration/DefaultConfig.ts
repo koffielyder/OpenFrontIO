@@ -130,7 +130,7 @@ export class DefaultConfig implements Config {
     return 10000 + 100 * Math.pow(dist, 1.1);
   }
   tradeShipSpawnRate(): number {
-    return 500;
+    return 700;
   }
 
   unitInfo(type: UnitType): UnitInfo {
@@ -190,8 +190,8 @@ export class DefaultConfig implements Config {
         return {
           cost: (p: Player) =>
             p.type() == PlayerType.Human && this.infiniteGold()
-              ? 25
-              : 25_000_000,
+              ? 0
+              : 15_000_000,
           territoryBound: false,
         };
       case UnitType.MIRVWarhead:
@@ -278,9 +278,6 @@ export class DefaultConfig implements Config {
   }
   boatMaxNumber(): number {
     return 3;
-  }
-  boatMaxDistance(): number {
-    return 500;
   }
   numSpawnPhaseTurns(): number {
     return this._gameConfig.gameType == GameType.Singleplayer ? 100 : 300;

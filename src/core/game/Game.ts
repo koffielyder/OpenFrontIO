@@ -281,6 +281,7 @@ export interface Player {
   numTilesOwned(): number;
   conquer(tile: TileRef): void;
   relinquish(tile: TileRef): void;
+  anexedTiles(): ReadonlySet<TileRef>;
 
   // Resources & Population
   gold(): Gold;
@@ -414,6 +415,8 @@ export interface Game extends GameMap {
   numTilesWithFallout(): number;
   // Optional as it's not initialized before the end of spawn phase
   stats(): Stats;
+
+  annexedFromPlayer(ref: TileRef): PlayerView | null;
 }
 
 export interface PlayerActions {

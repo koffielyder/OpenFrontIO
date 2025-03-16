@@ -32,6 +32,7 @@ import { GameMap, GameMapImpl, TileRef, TileUpdate } from "./GameMap";
 import { DefenseGrid } from "./DefensePostGrid";
 import { StatsImpl } from "./StatsImpl";
 import { Stats } from "./Stats";
+import { PlayerView } from "./GameView";
 
 export function createGame(
   gameMap: GameMap,
@@ -388,8 +389,11 @@ export class GameImpl implements Game {
       previousOwner._lastTileChange = this._ticks;
       previousOwner._tiles.delete(tile);
       previousOwner._borderTiles.delete(tile);
+      this._map.setOwnerID(tile, owner.smallID(), previousOwner, this.ticks());
+    } else {
+      this._map.setOwnerID(tile, owner.smallID());
     }
-    this._map.setOwnerID(tile, owner.smallID());
+
     owner._tiles.add(tile);
     owner._lastTileChange = this._ticks;
     this.updateBorders(tile);
@@ -413,7 +417,7 @@ export class GameImpl implements Game {
     previousOwner._tiles.delete(tile);
     previousOwner._borderTiles.delete(tile);
 
-    this._map.setOwnerID(tile, 0);
+    this._map.setOwnerID(tile, 0, null);
     this.updateBorders(tile);
     this.addUpdate({
       type: GameUpdateType.Tile,
@@ -597,8 +601,12 @@ export class GameImpl implements Game {
   hasOwner(ref: TileRef): boolean {
     return this._map.hasOwner(ref);
   }
-  setOwnerID(ref: TileRef, playerId: number): void {
-    return this._map.setOwnerID(ref, playerId);
+  setOwnerID(
+    ref: TileRef,
+    playerId: number,
+    previousPlayer: PlayerImpl | null = null,
+  ): void {
+    return this._map.setOwnerID(ref, playerId, previousPlayer);
   }
   hasFallout(ref: TileRef): boolean {
     return this._map.hasFallout(ref);
@@ -650,6 +658,38 @@ export class GameImpl implements Game {
   }
   stats(): Stats {
     return this._stats;
+  }
+
+  annexTile(
+    ref: TileRef,
+    prevPlayer: PlayerImpl,
+    ownerID: number,
+    turn: number,
+  ): void {
+    this._map.annexTile(ref, prevPlayer, ownerID, turn);
+  }
+  isAnnexed(ref: TileRef): boolean {
+    return this._map.isAnnexed(ref);
+  }
+  annexedFrom(ref: TileRef): number | null {
+    return this._map.annexedFrom(ref);
+  }
+  removeAnnex(ref: TileRef): void {
+    this._map.removeAnnex(ref);
+  }
+
+  annexedFromPlayer(ref: TileRef): PlayerView | null {
+    try {
+      const player = this.playerBySmallID(this._map.annexedFrom(ref));
+      if (player instanceof PlayerView && player.isAlive()) return player;
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  annexedTurn(ref: TileRef): number | null {
+    return this._map.annexedTurn(ref);
   }
 }
 

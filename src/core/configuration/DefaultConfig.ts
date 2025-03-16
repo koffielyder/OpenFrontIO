@@ -383,6 +383,13 @@ export class DefaultConfig implements Config {
 
     if (attacker.isPlayer() && defender.isPlayer()) {
       if (
+        gm.isAnnexed(tileToConquer) &&
+        gm.annexedFromPlayer(tileToConquer)?.smallID() == attacker.smallID()
+      ) {
+        mag *= 0.01;
+        speed *= 0.01;
+      }
+      if (
         attacker.type() == PlayerType.Human &&
         defender.type() == PlayerType.Bot
       ) {

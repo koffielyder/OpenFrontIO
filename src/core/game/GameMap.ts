@@ -1,4 +1,6 @@
-import { Cell, TerrainType } from "./Game";
+import { Cell, Player, TerrainType } from "./Game";
+import { PlayerView } from "./GameView";
+import { PlayerImpl } from "./PlayerImpl";
 
 export type TileRef = number;
 export type TileUpdate = bigint;
@@ -24,7 +26,23 @@ export interface GameMap {
   ownerID(ref: TileRef): number;
   hasOwner(ref: TileRef): boolean;
 
-  setOwnerID(ref: TileRef, playerId: number): void;
+  setOwnerID(
+    ref: TileRef,
+    playerId: number,
+    previousPlayer?: PlayerImpl | null,
+    ticks?: number | null,
+  ): void;
+  annexTile(
+    ref: TileRef,
+    prevPlayer: PlayerImpl,
+    playerId: number,
+    turn: number,
+  ): void;
+  isAnnexed(ref: TileRef): boolean;
+  annexedFrom(ref: TileRef): number | null;
+  removeAnnex(ref: TileRef): void;
+  annexedTurn(ref: TileRef): number | null;
+
   hasFallout(ref: TileRef): boolean;
   setFallout(ref: TileRef, value: boolean): void;
   isOnEdgeOfMap(ref: TileRef): boolean;
@@ -52,9 +70,8 @@ export interface GameMap {
 
 export class GameMapImpl implements GameMap {
   private _numTilesWithFallout = 0;
-
   private readonly terrain: Uint8Array; // Immutable terrain data
-  private readonly state: Uint16Array; // Mutable game state
+  private readonly state: Uint32Array; // Mutable game state
   private readonly width_: number;
   private readonly height_: number;
 
@@ -65,12 +82,18 @@ export class GameMapImpl implements GameMap {
   private static readonly MAGNITUDE_OFFSET = 4; // Uses bits 3-7 (5 bits)
   private static readonly MAGNITUDE_MASK = 0x1f; // 11111 in binary
 
-  // State bits (Uint16Array)
+  // State bits (Uint32Array)
   private static readonly PLAYER_ID_OFFSET = 0; // Uses bits 0-11 (12 bits)
   private static readonly PLAYER_ID_MASK = 0xfff;
-  private static readonly FALLOUT_BIT = 13;
-  private static readonly DEFENSE_BONUS_BIT = 14;
-  // Bit 15 still reserved
+  private static readonly OTHER_ID_OFFSET = 12; // Uses bits 12-23 (12 bits)
+  private static readonly OTHER_ID_MASK = 0xfff;
+  private static readonly FALLOUT_BIT = 24;
+  private static readonly DEFENSE_BONUS_BIT = 25;
+  private static readonly ANNEX_BIT = 26;
+  // private static readonly ANNEX_TURN_OFFSET = 26;
+  // private static readonly ANNEX_TURN_MASK = 0xfff;
+
+  // Bits 28-31 reserved for future use
 
   constructor(
     width: number,
@@ -86,8 +109,9 @@ export class GameMapImpl implements GameMap {
     this.width_ = width;
     this.height_ = height;
     this.terrain = terrainData;
-    this.state = new Uint16Array(width * height);
+    this.state = new Uint32Array(width * height);
   }
+
   numTilesWithFallout(): number {
     return this._numTilesWithFallout;
   }
@@ -114,9 +138,11 @@ export class GameMapImpl implements GameMap {
   width(): number {
     return this.width_;
   }
+
   height(): number {
     return this.height_;
   }
+
   numLandTiles(): number {
     return this.numLandTiles_;
   }
@@ -157,11 +183,23 @@ export class GameMapImpl implements GameMap {
     return this.ownerID(ref) != 0;
   }
 
-  setOwnerID(ref: TileRef, playerId: number): void {
+  setOwnerID(
+    ref: TileRef,
+    playerId: number,
+    previousPlayer: PlayerImpl | null = null,
+    tick: number | null = null,
+  ): void {
     if (playerId > GameMapImpl.PLAYER_ID_MASK) {
       throw new Error(
         `Player ID ${playerId} exceeds maximum value ${GameMapImpl.PLAYER_ID_MASK}`,
       );
+    }
+    if (
+      previousPlayer !== null &&
+      previousPlayer &&
+      previousPlayer.smallID() < GameMapImpl.OTHER_ID_MASK
+    ) {
+      this.annexTile(ref, previousPlayer, playerId, tick);
     }
     this.state[ref] =
       (this.state[ref] & ~GameMapImpl.PLAYER_ID_MASK) | playerId;
@@ -266,12 +304,14 @@ export class GameMapImpl implements GameMap {
       Math.abs(this.x(c1) - this.x(c2)) + Math.abs(this.y(c1) - this.y(c2))
     );
   }
+
   euclideanDist(c1: TileRef, c2: TileRef): number {
     return Math.sqrt(
       Math.pow(this.x(c1) - this.x(c2), 2) +
         Math.pow(this.y(c1) - this.y(c2), 2),
     );
   }
+
   bfs(
     tile: TileRef,
     filter: (gm: GameMap, tile: TileRef) => boolean,
@@ -291,17 +331,62 @@ export class GameMapImpl implements GameMap {
     return seen;
   }
 
+  annexTile(
+    tile: TileRef,
+    prevPlayer: PlayerImpl,
+    newPlayerId: number,
+    turn: number,
+  ): void {
+    if (this.isAnnexed(tile) && this.annexedFrom(tile) == newPlayerId) {
+      this.removeAnnex(tile);
+      prevPlayer._anexedTiles.delete(tile);
+    } else {
+      this.setAnnex(tile, prevPlayer.smallID(), 1);
+      prevPlayer._anexedTiles.add(tile);
+    }
+  }
+
+  removeAnnex(tile: TileRef): void {
+    this.setAnnex(tile, 0, 0);
+  }
+
+  setAnnex(tile: TileRef, playerID: number, turn: number): void {
+    if (turn) {
+      this.state[tile] |= 1 << GameMapImpl.ANNEX_BIT;
+    } else {
+      this.state[tile] &= ~(1 << GameMapImpl.ANNEX_BIT);
+    }
+    this.state[tile] =
+      (this.state[tile] & ~GameMapImpl.OTHER_ID_MASK) |
+      (playerID << GameMapImpl.OTHER_ID_OFFSET);
+  }
+
+  isAnnexed(tile: TileRef): boolean {
+    return Boolean(this.annexedTurn(tile) > 0);
+  }
+
+  annexedTurn(tile: TileRef): number {
+    return this.state[tile] & (1 << GameMapImpl.ANNEX_BIT);
+  }
+
+  annexedFrom(tile: TileRef): number | null {
+    const annexedId =
+      (this.state[tile] >> GameMapImpl.OTHER_ID_OFFSET) &
+      GameMapImpl.OTHER_ID_MASK;
+    return annexedId;
+  }
+
   toTileUpdate(tile: TileRef): bigint {
     // Pack the tile reference and state into a bigint
-    // Format: [32 bits for tile reference][16 bits for state]
-    return (BigInt(tile) << 16n) | BigInt(this.state[tile]);
+    // Format: [32 bits for tile reference][32 bits for state]
+    return (BigInt(tile) << 32n) | BigInt(this.state[tile]);
   }
 
   updateTile(tu: TileUpdate): TileRef {
     // Extract tile reference and state from the TileUpdate
-    // Last 16 bits are state, rest is tile reference
-    const tileRef = Number(tu >> 16n);
-    const state = Number(tu & 0xffffn);
+    // Last 32 bits are state, rest is tile reference
+    const tileRef = Number(tu >> 32n);
+    const state = Number(tu & 0xffffffffn);
 
     const existingFallout = this.hasFallout(tileRef);
     this.state[tileRef] = state;

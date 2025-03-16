@@ -32,6 +32,7 @@ import { GameMap, GameMapImpl, TileRef, TileUpdate } from "./GameMap";
 import { GameUpdateViewData } from "./GameUpdates";
 import { DefenseGrid } from "./DefensePostGrid";
 import { consolex } from "../Consolex";
+import { PlayerImpl } from "./PlayerImpl";
 
 export class UnitView {
   public _wasUpdated = true;
@@ -454,8 +455,12 @@ export class GameView implements GameMap {
   hasOwner(ref: TileRef): boolean {
     return this._map.hasOwner(ref);
   }
-  setOwnerID(ref: TileRef, playerId: number): void {
-    return this._map.setOwnerID(ref, playerId);
+  setOwnerID(
+    ref: TileRef,
+    playerId: number,
+    previousPlayer?: PlayerImpl | null,
+  ): void {
+    return this._map.setOwnerID(ref, playerId, previousPlayer);
   }
   hasFallout(ref: TileRef): boolean {
     return this._map.hasFallout(ref);
@@ -510,5 +515,32 @@ export class GameView implements GameMap {
   }
   gameID(): GameID {
     return this._gameID;
+  }
+
+  annexTile(ref: TileRef, prevPlayer: PlayerImpl, ownerId: number): void {
+    this._map.annexTile(ref, prevPlayer, ownerId, this.ticks());
+  }
+  isAnnexed(ref: TileRef): boolean {
+    return this._map.isAnnexed(ref);
+  }
+  annexedFrom(ref: TileRef): number | null {
+    return this._map.annexedFrom(ref);
+  }
+  annexedFromPlayer(ref: TileRef): PlayerView | null {
+    try {
+      const player = this.playerBySmallID(this._map.annexedFrom(ref));
+      if (player instanceof PlayerView && player.isAlive()) return player;
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  annexedTurn(ref: TileRef): number | null {
+    return this._map.annexedTurn(ref);
+  }
+
+  removeAnnex(tile: TileRef): void {
+    this._map.removeAnnex(tile);
   }
 }

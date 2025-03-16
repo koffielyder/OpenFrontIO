@@ -307,7 +307,9 @@ export class AttackExecution implements Execution {
     );
     this.target.removeGold(gold);
     this._owner.addGold(gold);
-
+    for (const tile of this.target.anexedTiles()) {
+      this.mg.removeAnnex(tile);
+    }
     for (let i = 0; i < 10; i++) {
       for (const tile of this.target.tiles()) {
         const borders = this.mg

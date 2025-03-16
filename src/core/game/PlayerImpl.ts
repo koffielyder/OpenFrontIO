@@ -76,6 +76,7 @@ export class PlayerImpl implements Player {
 
   public _units: UnitImpl[] = [];
   public _tiles: Set<TileRef> = new Set();
+  public _anexedTiles: Set<TileRef> = new Set();
 
   private _flag: string;
   private _name: string;
@@ -224,6 +225,10 @@ export class PlayerImpl implements Player {
 
   tiles(): ReadonlySet<TileRef> {
     return new Set(this._tiles.values()) as Set<TileRef>;
+  }
+
+  anexedTiles(): ReadonlySet<TileRef> {
+    return new Set(this._anexedTiles.values()) as Set<TileRef>;
   }
 
   borderTiles(): ReadonlySet<TileRef> {

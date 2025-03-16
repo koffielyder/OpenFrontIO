@@ -9,7 +9,7 @@ import {
 } from "../../../core/game/Game";
 import { GameUpdateType, UnitUpdate } from "../../../core/game/GameUpdates";
 import { PseudoRandom } from "../../../core/PseudoRandom";
-import { colord, Colord } from "colord";
+import { colord, Colord, RgbaColor } from "colord";
 import { Theme } from "../../../core/configuration/Config";
 import { Layer } from "./Layer";
 import { EventBus } from "../../../core/EventBus";
@@ -238,6 +238,7 @@ export class TerritoryLayer implements Layer {
       return;
     }
     const owner = this.game.owner(tile) as PlayerView;
+    const prevOwner = this.game.annexedFromPlayer(tile);
     if (this.game.isBorder(tile)) {
       if (
         this.game.nearbyDefenses(tile).filter((u) => u.owner() == owner)
@@ -264,7 +265,36 @@ export class TerritoryLayer implements Layer {
         this.theme.territoryColor(owner.info()),
         150,
       );
+      if (
+        this.game.isAnnexed(tile) &&
+        prevOwner &&
+        prevOwner instanceof PlayerView &&
+        (tile + (this.game.y(tile) % 2)) % 2 == 0
+      ) {
+        this.paintCell(
+          this.game.x(tile),
+          this.game.y(tile),
+          this.blendColors(
+            this.theme.territoryColor(prevOwner.info()),
+            this.theme.territoryColor(owner.info()),
+          ),
+          150,
+        );
+      }
     }
+  }
+
+  blendColors(fg: Colord, bg: Colord): Colord {
+    const fgRgb = fg.toRgb();
+    const bgRgb = bg.toRgb();
+    const result: RgbaColor = {
+      r: (fgRgb.r + bgRgb.r) / 2,
+      g: (fgRgb.g + bgRgb.g) / 2,
+      b: (fgRgb.b + bgRgb.b) / 2,
+      a: 255,
+    };
+
+    return new Colord(result);
   }
 
   paintCell(x: number, y: number, color: Colord, alpha: number) {

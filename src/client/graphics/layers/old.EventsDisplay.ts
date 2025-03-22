@@ -52,7 +52,7 @@ interface Event {
   focusID?: number;
 }
 
-@customElement("events-display")
+// @customElement("events-display")
 export class EventsDisplay extends LitElement implements Layer {
   public eventBus: EventBus;
   public game: GameView;

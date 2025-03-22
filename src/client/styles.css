@@ -26,3 +26,49 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+@layer components {
+  .theme-border {
+    /* Apply them using standard CSS properties */
+    border: var(--border-width) var(--border-style) var(--border-color);
+    box-shadow: var(--border-shadow);
+    transition: var(--border-animation);
+  }
+
+  .theme-container {
+    @apply bg-gray-900/60 rounded-lg backdrop-blur-md text-white;
+  }
+
+  .theme-stat-box-base {
+    /* @extend .theme-container; */
+    @apply bg-gray-900/60 rounded-lg backdrop-blur-md text-white;
+
+    @apply items-center p-2 text-center;
+    @apply flex-shrink-0 flex-grow-0;
+    @apply bg-transparent bg-gradient-to-br from-gray-900/60 via-[var(--tw-gradient-from)] via-[percentage:20%] to-gray-900/50;
+  }
+
+  .theme-stat-box {
+    /* @extend .theme-stat-box-base; */
+    @apply bg-gray-900/60 rounded-lg backdrop-blur-md text-white;
+    @apply items-center p-2 text-center;
+    @apply flex-shrink-0 flex-grow-0;
+    @apply bg-transparent bg-gradient-to-br from-gray-900/60 via-[var(--tw-gradient-from)] via-[percentage:20%] to-gray-900/50;
+
+    @apply grid grid-rows-[2fr_1fr_2fr] md:py-4 py-2;
+  }
+
+  .theme-stat-box-vertical {
+    /* @extend .theme-stat-box-base; */
+    @apply bg-gray-900/60 rounded-lg backdrop-blur-md text-white;
+    @apply items-center p-2 text-center;
+    @apply flex-shrink-0 flex-grow-0;
+    @apply bg-transparent bg-gradient-to-br from-gray-900/60 via-[var(--tw-gradient-from)] via-[percentage:20%] to-gray-900/50;
+
+    @apply grid grid-cols-[2fr_1fr_2fr] px-4;
+  }
+
+  .disabled {
+    @apply opacity-50 pointer-events-none;
+  }
+}

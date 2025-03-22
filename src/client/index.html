@@ -319,10 +319,24 @@
     <help-modal></help-modal>
 
     <div
-      class="flex flex-column gap-2 fixed right-0 top-0 z-50 flex flex-col w-32 sm:w-32 lg:w-48"
+      class="flex flex-column gap-2 fixed right-0 top-0 z-50 flex-col w-32 sm:w-32 lg:w-48"
     >
       <options-menu></options-menu>
       <player-info-overlay></player-info-overlay>
+    </div>
+
+    <div
+      id="top-center"
+      class="md:w-1/4 top-0 left-1/2 -translate-x-1/2 fixed flex flex-col gap-2 z-50 items-start md:p-4"
+    >
+      <requests-display></requests-display>
+    </div>
+
+    <div
+      id="middle-right"
+      class="md:w-1/4 right-0 top-1/2 -translate-y-1/2 fixed flex flex-col gap-2 z-50 items-end md:p-4"
+    >
+      <fronts-display></fronts-display>
     </div>
 
     <div
@@ -330,7 +344,7 @@
       style="position: fixed; pointer-events: none"
     >
       <div
-        class="w-full sm:w-2/3 sm:fixed sm:right-0 sm:bottom-0 sm:flex justify-end"
+        class="w-full sm:w-2/3 sm:fixed sm:right-0 sm:bottom-0 sm:flex justify-end flex flex-col items-end"
         style="pointer-events: none"
       >
         <events-display></events-display>

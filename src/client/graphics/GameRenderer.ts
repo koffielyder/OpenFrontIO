@@ -6,7 +6,7 @@ import { ClientID } from "../../core/Schemas";
 import { EventBus } from "../../core/EventBus";
 import { TransformHandler } from "./TransformHandler";
 import { Layer } from "./layers/Layer";
-import { EventsDisplay } from "./layers/EventsDisplay";
+import { EventsDisplay } from "./layers/Events/EventsDisplay";
 import { RadialMenu } from "./layers/RadialMenu";
 import { EmojiTable } from "./layers/EmojiTable";
 import { Leaderboard } from "./layers/Leaderboard";
@@ -26,6 +26,8 @@ import { OptionsMenu } from "./layers/OptionsMenu";
 import { TopBar } from "./layers/TopBar";
 import { PlayerPanel } from "./layers/PlayerPanel";
 import { GameStartingModal } from "../gameStartingModal";
+import { FrontsDisplay } from "./layers/Events/FrontsDisplay";
+import { RequestsDisplay } from "./layers/Events/RequestsDisplay";
 
 export function createRenderer(
   canvas: HTMLCanvasElement,
@@ -83,6 +85,28 @@ export function createRenderer(
   eventsDisplay.game = game;
   eventsDisplay.clientID = clientID;
 
+  const frontsDisplay = document.querySelector(
+    "fronts-display",
+  ) as FrontsDisplay;
+  if (!(frontsDisplay instanceof FrontsDisplay)) {
+    consolex.error("fronts display not found");
+  }
+
+  frontsDisplay.eventBus = eventBus;
+  frontsDisplay.game = game;
+  frontsDisplay.clientID = clientID;
+
+  const requestsDisplay = document.querySelector(
+    "requests-display",
+  ) as RequestsDisplay;
+  if (!(requestsDisplay instanceof RequestsDisplay)) {
+    consolex.error("requests display not found");
+  }
+
+  requestsDisplay.eventBus = eventBus;
+  requestsDisplay.game = game;
+  requestsDisplay.clientID = clientID;
+
   const playerInfo = document.querySelector(
     "player-info-overlay",
   ) as PlayerInfoOverlay;
@@ -129,6 +153,7 @@ export function createRenderer(
     new UnitLayer(game, eventBus, clientID, transformHandler),
     new UILayer(game, eventBus, clientID, transformHandler),
     new NameLayer(game, transformHandler, clientID),
+    frontsDisplay,
     eventsDisplay,
     buildMenu,
     new RadialMenu(

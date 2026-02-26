@@ -30,7 +30,16 @@ export class TrainExecution implements Execution {
     private source: TrainStation,
     private destination: TrainStation,
     private numCars: number,
+    private sourceFactoryLevelSlot: number = 0,
   ) {}
+
+  public sourceStation(): TrainStation {
+    return this.source;
+  }
+
+  public sourceFactorySlot(): number {
+    return this.sourceFactoryLevelSlot;
+  }
 
   public owner(): Player {
     return this.player;

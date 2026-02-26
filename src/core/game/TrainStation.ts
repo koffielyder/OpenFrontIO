@@ -4,6 +4,11 @@ import { Game, Player, Unit, UnitType } from "./Game";
 import { TileRef } from "./GameMap";
 import { GameUpdateType } from "./GameUpdates";
 import { Railroad } from "./Railroad";
+import {
+  getResourceTypeAtTile,
+  resourceSeedKeyFromGameConfig,
+  ResourceType,
+} from "./ResourceNodes";
 
 /**
  * Handle train stops at various station types
@@ -28,6 +33,37 @@ class TradeStationStopHandler implements TrainStopHandler {
     }
     trainOwner.addGold(gold, station.tile());
     mg.stats().trainSelfTrade(trainOwner, gold);
+
+    if (typeof trainExecution.sourceStation !== "function") {
+      return;
+    }
+    if (typeof trainExecution.sourceFactorySlot !== "function") {
+      return;
+    }
+
+    const sourceStation = trainExecution.sourceStation();
+    if (sourceStation.unit.type() !== UnitType.Factory) {
+      return;
+    }
+
+    const uniqueResources = uniqueExtractorResourcesConnectedToFactory(
+      mg,
+      sourceStation,
+      trainExecution.sourceFactorySlot(),
+    );
+    if (uniqueResources === 0) {
+      return;
+    }
+
+    const perResourceBonus = mg.config().trainGold("self") / 2n;
+    const bonus =
+      perResourceBonus * bonusMultiplierForUniqueResources(uniqueResources);
+    if (bonus <= 0n) {
+      return;
+    }
+
+    trainOwner.addGold(bonus, station.tile());
+    mg.stats().trainSelfTrade(trainOwner, bonus);
   }
 }
 
@@ -46,6 +82,7 @@ export function createTrainStopHandlers(
     [UnitType.City]: new TradeStationStopHandler(),
     [UnitType.Port]: new TradeStationStopHandler(),
     [UnitType.Factory]: new FactoryStopHandler(),
+    [UnitType.Extractor]: new FactoryStopHandler(),
   };
 }
 
@@ -253,4 +290,118 @@ function rel(
     return "ally";
   }
   return "other";
+}
+
+function uniqueExtractorResourcesConnectedToFactory(
+  mg: Game,
+  factoryStation: TrainStation,
+  sourceFactoryLevelSlot: number,
+): number {
+  const cluster = factoryStation.getCluster();
+  if (cluster === null) {
+    return 0;
+  }
+
+  const owner = factoryStation.unit.owner();
+  const ownerFactories = Array.from(cluster.stations)
+    .filter(
+      (station) =>
+        station.unit.type() === UnitType.Factory &&
+        station.unit.owner() === owner &&
+        station.unit.isActive(),
+    )
+    .sort((a, b) => a.id - b.id);
+
+  let factoryLevelRank = -1;
+  let seenFactoryLevels = 0;
+  const normalizedSlot = Math.max(0, sourceFactoryLevelSlot | 0);
+
+  for (const station of ownerFactories) {
+    if (station === factoryStation) {
+      const maxSlot = Math.max(0, station.unit.level() - 1);
+      factoryLevelRank = seenFactoryLevels + Math.min(normalizedSlot, maxSlot);
+      break;
+    }
+    seenFactoryLevels += station.unit.level();
+  }
+
+  if (factoryLevelRank < 0) {
+    return 0;
+  }
+
+  const totalFactoryLevels = ownerFactories.reduce(
+    (sum, station) => sum + station.unit.level(),
+    0,
+  );
+  if (factoryLevelRank >= totalFactoryLevels || totalFactoryLevels <= 0) {
+    return 0;
+  }
+
+  const seedKey = resourceSeedKeyFromGameConfig(mg.config().gameConfig());
+  const capacityByType = new Map<ResourceType, number>();
+
+  for (const station of cluster.stations) {
+    if (
+      station.unit.type() !== UnitType.Extractor ||
+      station.unit.owner() !== owner ||
+      !station.unit.isActive()
+    ) {
+      continue;
+    }
+
+    const resource = getResourceTypeAtTile(mg, seedKey, station.tile());
+    if (resource !== null) {
+      const existingCapacity = capacityByType.get(resource) ?? 0;
+      capacityByType.set(resource, existingCapacity + station.unit.level());
+    }
+  }
+
+  const resourcesPerFactoryLevel = Array.from(
+    { length: totalFactoryLevels },
+    () => new Set<ResourceType>(),
+  );
+
+  const capacities = Array.from(capacityByType.entries()).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+
+  for (const [resource, capacity] of capacities) {
+    for (let remaining = capacity; remaining > 0; remaining--) {
+      let bestFactoryLevel = -1;
+      let bestResourceCount = -1;
+
+      for (
+        let factoryLevel = 0;
+        factoryLevel < totalFactoryLevels;
+        factoryLevel++
+      ) {
+        const assignedResources = resourcesPerFactoryLevel[factoryLevel];
+        if (assignedResources.has(resource)) {
+          continue;
+        }
+
+        const assignedCount = assignedResources.size;
+        if (assignedCount > bestResourceCount) {
+          bestResourceCount = assignedCount;
+          bestFactoryLevel = factoryLevel;
+        }
+      }
+
+      if (bestFactoryLevel === -1) {
+        break;
+      }
+
+      resourcesPerFactoryLevel[bestFactoryLevel].add(resource);
+    }
+  }
+
+  return resourcesPerFactoryLevel[factoryLevelRank].size;
+}
+
+function bonusMultiplierForUniqueResources(uniqueResources: number): bigint {
+  if (uniqueResources <= 0) {
+    return 0n;
+  }
+
+  return BigInt((uniqueResources * (uniqueResources + 1)) / 2);
 }

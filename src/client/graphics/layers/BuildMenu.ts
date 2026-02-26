@@ -116,6 +116,13 @@ export const buildTable: BuildItemDisplay[][] = [
       key: "unit_type.factory",
       countable: true,
     },
+    {
+      unitType: UnitType.Extractor,
+      icon: factoryIcon,
+      description: "build_menu.desc.extractor",
+      key: "unit_type.extractor",
+      countable: true,
+    },
   ],
 ];
 

@@ -482,7 +482,8 @@
     "atom_bomb": "Atom Bomb",
     "hydrogen_bomb": "Hydrogen Bomb",
     "mirv": "MIRV",
-    "factory": "Factory"
+    "factory": "Factory",
+    "extractor": "Extractor"
   },
   "user_setting": {
     "title": "Settings",
@@ -527,6 +528,8 @@
     "build_city_desc": "Build a City under your cursor.",
     "build_factory": "Build Factory",
     "build_factory_desc": "Build a Factory under your cursor.",
+    "build_extractor": "Build Extractor",
+    "build_extractor_desc": "Build an Extractor under your cursor.",
     "build_defense_post": "Build Defense Post",
     "build_defense_post_desc": "Build a Defense Post under your cursor.",
     "build_port": "Build Port",
@@ -688,7 +691,8 @@
       "port": "Sends trade ships to generate gold",
       "defense_post": "Increases defenses of nearby borders",
       "city": "Increases max population",
-      "factory": "Creates railroads and spawns trains"
+      "factory": "Creates railroads and spawns trains",
+      "extractor": "Connects to factories and boosts train gold from unique resources"
     },
     "not_enough_money": "Not enough money"
   },

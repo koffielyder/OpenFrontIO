@@ -10,7 +10,9 @@ export class TrainStationExecution implements Execution {
   private station: TrainStation | null = null;
   private numCars: number = 5;
   private lastSpawnTick: number = 0;
-  private ticksCooldown: number = 10; // Minimum cooldown between two trains
+  private ticksCooldown: number = 2; // Minimum cooldown between two trains
+  private maxTicksWithoutSpawn: number = 20; // Force spawn after this many ticks
+  private nextFactoryLevelSlot: number = 0;
   constructor(
     private unit: Unit,
     private spawnTrains?: boolean, // If set, the station will spawn trains
@@ -75,7 +77,9 @@ export class TrainStationExecution implements Execution {
     if (!cluster.hasAnyTradeDestination(owner)) {
       return;
     }
-    if (!this.shouldSpawnTrain()) {
+    const forceSpawnAt = this.lastSpawnTick + this.maxTicksWithoutSpawn;
+    const forceSpawn = currentTick >= forceSpawnAt;
+    if (!forceSpawn && !this.shouldSpawnTrain()) {
       return;
     }
 
@@ -85,6 +89,12 @@ export class TrainStationExecution implements Execution {
     if (destination === null) return;
     if (destination === station) return;
 
+    const currentFactoryLevel = Math.max(1, this.unit.level());
+    const sourceFactoryLevelSlot =
+      this.nextFactoryLevelSlot % currentFactoryLevel;
+    this.nextFactoryLevelSlot =
+      (this.nextFactoryLevelSlot + 1) % currentFactoryLevel;
+
     this.mg.addExecution(
       new TrainExecution(
         this.mg.railNetwork(),
@@ -92,6 +102,7 @@ export class TrainStationExecution implements Execution {
         station,
         destination,
         this.numCars,
+        sourceFactoryLevelSlot,
       ),
     );
     this.lastSpawnTick = currentTick;

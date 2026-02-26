@@ -57,15 +57,53 @@ export class DynamicUILayer implements Layer {
       this.onUnitEvent(unitView);
     });
 
-    updates[GameUpdateType.BonusEvent]?.forEach((bonusEvent) => {
-      if (bonusEvent === undefined) return;
-      this.onBonusEvent(bonusEvent);
-    });
+    const bonusEvents = updates[GameUpdateType.BonusEvent] ?? [];
+    this.onBonusEvents(bonusEvents);
 
     updates[GameUpdateType.ConquestEvent]?.forEach((update) => {
       if (update === undefined) return;
       this.onConquestEvent(update);
     });
+  }
+
+  private onBonusEvents(events: BonusEventUpdate[]) {
+    if (events.length === 0) {
+      return;
+    }
+
+    const myPlayer = this.game.myPlayer();
+    if (!myPlayer) {
+      return;
+    }
+
+    const aggregatedByTile = new Map<number, { gold: number; troops: number }>();
+    for (const bonusEvent of events) {
+      if (bonusEvent === undefined) continue;
+      if (this.game.player(bonusEvent.player) !== myPlayer) {
+        continue;
+      }
+
+      const existing = aggregatedByTile.get(bonusEvent.tile);
+      if (existing) {
+        existing.gold += bonusEvent.gold;
+        existing.troops += bonusEvent.troops;
+      } else {
+        aggregatedByTile.set(bonusEvent.tile, {
+          gold: bonusEvent.gold,
+          troops: bonusEvent.troops,
+        });
+      }
+    }
+
+    for (const [tile, total] of aggregatedByTile) {
+      this.onBonusEvent({
+        type: GameUpdateType.BonusEvent,
+        player: myPlayer.id(),
+        tile,
+        gold: total.gold,
+        troops: total.troops,
+      });
+    }
   }
 
   onBonusEvent(bonus: BonusEventUpdate) {

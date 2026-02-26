@@ -43,6 +43,10 @@ import {
 import { GameImpl } from "./GameImpl";
 import { andFN, manhattanDistFN, TileRef } from "./GameMap";
 import {
+  findResourceNodeNearTile,
+  resourceSeedKeyFromGameConfig,
+} from "./ResourceNodes";
+import {
   AllianceView,
   AttackUpdate,
   GameUpdateType,
@@ -1119,9 +1123,30 @@ export class PlayerImpl implements Player {
       case UnitType.City:
       case UnitType.Factory:
         return this.landBasedStructureSpawn(targetTile, validTiles);
+      case UnitType.Extractor:
+        return this.extractorSpawn(targetTile, validTiles);
       default:
         assertNever(unitType);
     }
+  }
+
+  extractorSpawn(
+    tile: TileRef,
+    validTiles: TileRef[] | null,
+  ): TileRef | false {
+    const seedKey = resourceSeedKeyFromGameConfig(this.mg.config().gameConfig());
+    const resourceNode = findResourceNodeNearTile(this.mg, seedKey, tile);
+    if (resourceNode === null) {
+      return false;
+    }
+
+    const validTileSet = new Set(
+      validTiles ?? this.validStructureSpawnTiles(resourceNode.tile),
+    );
+    if (!validTileSet.has(resourceNode.tile)) {
+      return false;
+    }
+    return resourceNode.tile;
   }
 
   nukeSpawn(tile: TileRef, nukeType: UnitType): TileRef | false {

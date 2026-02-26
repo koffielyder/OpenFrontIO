@@ -259,6 +259,7 @@ export enum UnitType {
   MIRVWarhead = "MIRV Warhead",
   Train = "Train",
   Factory = "Factory",
+  Extractor = "Extractor",
 }
 
 export enum TrainType {
@@ -274,6 +275,7 @@ const _structureTypes: ReadonlySet<UnitType> = new Set([
   UnitType.MissileSilo,
   UnitType.Port,
   UnitType.Factory,
+  UnitType.Extractor,
 ]);
 
 export const StructureTypes: readonly UnitType[] = [..._structureTypes];
@@ -328,6 +330,8 @@ export interface UnitParamsMap {
   };
 
   [UnitType.Factory]: Record<string, never>;
+
+  [UnitType.Extractor]: Record<string, never>;
 
   [UnitType.MissileSilo]: Record<string, never>;
 

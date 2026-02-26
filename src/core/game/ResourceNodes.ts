@@ -7,6 +7,7 @@ const TARGET_ICONS_MAX = 350;
 const LAND_TILES_PER_RESOURCE = 4000;
 const CELL_SIZE = 28;
 export const RESOURCE_NODE_RADIUS = 3;
+const MIN_RESOURCE_NODE_SPACING = 15;
 
 export enum ResourceType {
   Ore = "Ore",
@@ -140,10 +141,30 @@ function generateResourceNodes(map: GameMap, seedKey: string): ResourceNode[] {
     }
   });
 
-  return Array.from(byCell.values())
-    .sort((a, b) => a.score - b.score)
-    .slice(0, target)
-    .map((candidate) => ({ tile: candidate.tile, type: candidate.type }));
+  const sortedCandidates = Array.from(byCell.values()).sort(
+    (a, b) => a.score - b.score,
+  );
+
+  const selected: ResourceNode[] = [];
+  const minSpacingSquared =
+    MIN_RESOURCE_NODE_SPACING * MIN_RESOURCE_NODE_SPACING;
+
+  for (const candidate of sortedCandidates) {
+    const tooClose = selected.some(
+      (node) =>
+        map.euclideanDistSquared(candidate.tile, node.tile) < minSpacingSquared,
+    );
+    if (tooClose) {
+      continue;
+    }
+
+    selected.push({ tile: candidate.tile, type: candidate.type });
+    if (selected.length >= target) {
+      break;
+    }
+  }
+
+  return selected;
 }
 
 function resourceTypeForTile(map: GameMap, tile: TileRef): ResourceType | null {

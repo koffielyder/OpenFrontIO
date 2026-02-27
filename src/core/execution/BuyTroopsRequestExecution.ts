@@ -19,35 +19,48 @@ export class BuyTroopsRequestExecution implements Execution {
   ) {}
 
   init(mg: Game): void {
-    this.mg = mg;
-    if (!mg.hasPlayer(this.recipientID)) {
-      this.active = false;
-      return;
-    }
+    try {
+      this.mg = mg;
+      if (!mg.hasPlayer(this.recipientID)) {
+        this.active = false;
+        return;
+      }
 
-    const recipient = mg.player(this.recipientID);
-    if (!this.requestor.canRequestTroopsFrom(recipient)) {
-      this.active = false;
-      return;
-    }
+      const recipient = mg.player(this.recipientID);
+      if (!this.requestor.canRequestTroopsFrom(recipient)) {
+        this.active = false;
+        return;
+      }
 
-    this.req = this.requestor.createTroopPurchaseRequest(recipient, this.gold);
+      this.req = this.requestor.createTroopPurchaseRequest(
+        recipient,
+        this.gold,
+      );
+    } catch (error) {
+      console.error("[BuyTroopsRequestExecution] init failed", error);
+      this.active = false;
+    }
   }
 
   tick(): void {
-    if (
-      this.req?.status() === "accepted" ||
-      this.req?.status() === "rejected"
-    ) {
-      this.active = false;
-      return;
-    }
+    try {
+      if (
+        this.req?.status() === "accepted" ||
+        this.req?.status() === "rejected"
+      ) {
+        this.active = false;
+        return;
+      }
 
-    if (
-      this.mg.ticks() - (this.req?.createdAt() ?? 0) >
-      this.mg.config().allianceRequestDuration()
-    ) {
-      this.req?.reject();
+      if (
+        this.mg.ticks() - (this.req?.createdAt() ?? 0) >
+        this.mg.config().allianceRequestDuration()
+      ) {
+        this.req?.reject();
+        this.active = false;
+      }
+    } catch (error) {
+      console.error("[BuyTroopsRequestExecution] tick failed", error);
       this.active = false;
     }
   }

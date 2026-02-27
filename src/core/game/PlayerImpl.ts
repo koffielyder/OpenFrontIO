@@ -574,13 +574,22 @@ export class PlayerImpl implements Player {
     if (!this.isAlive() || !other.isAlive()) {
       return false;
     }
-    if (!this.isFriendly(other)) {
-      return false;
-    }
-    if (!other.canDonateTroops(this)) {
+    if (other.hasEmbargoAgainst(this)) {
       return false;
     }
     if (this.gold() < 10n) {
+      return false;
+    }
+    const otherTroops = other.troops();
+    if (!Number.isFinite(otherTroops) || otherTroops <= 0) {
+      return false;
+    }
+    const buyerMaxTroops = this.mg.config().maxTroops(this);
+    if (!Number.isFinite(buyerMaxTroops)) {
+      return false;
+    }
+    const buyerCapacity = buyerMaxTroops - this.troops();
+    if (buyerCapacity <= 0) {
       return false;
     }
     return !this.outgoingTroopPurchaseRequests().some(

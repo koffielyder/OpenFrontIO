@@ -383,6 +383,25 @@ export class GameImpl implements Game {
     if (roundedGold <= 0n) {
       return null;
     }
+    const maxByBuyerGold = requestor.gold();
+    const sellerTroops = recipient.troops();
+    const maxBySellerTroops = BigInt(
+      Math.max(0, Number.isFinite(sellerTroops) ? Math.floor(sellerTroops) : 0),
+    );
+    const buyerMaxTroops = this.config().maxTroops(requestor);
+    const buyerCapacity = Number.isFinite(buyerMaxTroops)
+      ? Math.max(0, buyerMaxTroops - requestor.troops())
+      : 0;
+    const maxByBuyerCapacity = BigInt(Math.floor(buyerCapacity));
+    const maxRequest = [
+      maxByBuyerGold,
+      maxBySellerTroops,
+      maxByBuyerCapacity,
+    ].reduce((a, b) => (a < b ? a : b));
+    const cappedGold = roundedGold < maxRequest ? roundedGold : maxRequest;
+    if (cappedGold <= 0n) {
+      return null;
+    }
     const duplicate = this.troopPurchaseRequests.find(
       (r) => r.requestor() === requestor && r.recipient() === recipient,
     );
@@ -393,7 +412,7 @@ export class GameImpl implements Game {
     const req = new TroopPurchaseRequestImpl(
       requestor,
       recipient,
-      roundedGold,
+      cappedGold,
       this._ticks,
       this,
     );
@@ -410,12 +429,17 @@ export class GameImpl implements Game {
     const buyer = request.requestor();
     const seller = request.recipient();
 
-    const requestedTroops = request.gold() / 10n;
-    const maxBySeller = BigInt(Math.max(0, seller.troops()));
-    const maxByBuyerGold = buyer.gold() / 10n;
-    const maxByBuyerCapacity = BigInt(
-      Math.max(0, this.config().maxTroops(buyer) - buyer.troops()),
+    const requestedTroops = request.gold();
+    const sellerTroops = seller.troops();
+    const maxBySeller = BigInt(
+      Math.max(0, Number.isFinite(sellerTroops) ? Math.floor(sellerTroops) : 0),
     );
+    const maxByBuyerGold = buyer.gold();
+    const buyerMaxTroops = this.config().maxTroops(buyer);
+    const buyerCapacity = Number.isFinite(buyerMaxTroops)
+      ? Math.max(0, buyerMaxTroops - buyer.troops())
+      : 0;
+    const maxByBuyerCapacity = BigInt(Math.floor(buyerCapacity));
 
     const troopsToSend = [
       requestedTroops,
@@ -427,9 +451,9 @@ export class GameImpl implements Game {
     let troopsSent = 0;
     let goldPaid = 0n;
 
-    if (troopsToSend > 0n && seller.canDonateTroops(buyer)) {
+    if (troopsToSend > 0n) {
       troopsSent = Number(troopsToSend);
-      goldPaid = troopsToSend * 10n;
+      goldPaid = troopsToSend;
       seller.removeTroops(troopsSent);
       buyer.addTroops(troopsSent);
       buyer.removeGold(goldPaid);

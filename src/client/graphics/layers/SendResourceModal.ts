@@ -145,14 +145,25 @@ export class SendResourceModal extends LitElement {
     return within(p, 0, 100);
   }
 
-  /** Internal capacity only for troops; gold is unlimited. */
+  /** Internal capacity for capped transfer/request modes. */
   private getCapacityLeft(): number | null {
     if (!this.isTargetAlive()) return 0;
-    if (this.mode !== "troops") return null;
+    if (this.mode !== "troops" && this.mode !== "buy_troops") return null;
     if (!this.gameView || !this.target) return null;
-    const current = this.toNum(this.target.troops());
-    const max = this.toNum(this.gameView.config().maxTroops(this.target));
-    return Math.max(0, max - current);
+
+    if (this.mode === "troops") {
+      const current = this.toNum(this.target.troops());
+      const max = this.toNum(this.gameView.config().maxTroops(this.target));
+      return Math.max(0, max - current);
+    }
+
+    const sellerTroops = this.toNum(this.target.troops());
+    const buyerTroops = this.toNum(this.myPlayer?.troops() ?? 0);
+    const buyerMax = this.toNum(
+      this.gameView.config().maxTroops(this.myPlayer ?? this.target),
+    );
+    const buyerCapacity = Math.max(0, buyerMax - buyerTroops);
+    return Math.min(sellerTroops, buyerCapacity);
   }
 
   private getPercentBasis(): number {

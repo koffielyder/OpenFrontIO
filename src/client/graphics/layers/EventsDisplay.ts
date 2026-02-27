@@ -35,7 +35,7 @@ import { Layer } from "./Layer";
 
 import { GameView, PlayerView, UnitView } from "../../../core/game/GameView";
 import { onlyImages } from "../../../core/Util";
-import { renderNumber } from "../../Utils";
+import { renderNumber, renderTroops } from "../../Utils";
 import { GoToPlayerEvent, GoToUnitEvent } from "./Leaderboard";
 
 import { getMessageTypeClasses, translateText } from "../../Utils";
@@ -231,7 +231,19 @@ export class EventsDisplay extends LitElement implements Layer {
     const updates = this.game.updatesSinceLastTick();
     if (updates) {
       for (const [ut, fn] of this.updateMap) {
-        updates[ut]?.forEach(fn as (event: unknown) => void);
+        updates[ut]?.forEach((event) => {
+          try {
+            (fn as (event: unknown) => void)(event);
+          } catch (error) {
+            console.warn(
+              `[EventsDisplay] failed to process update type ${ut}`,
+              {
+                error,
+                event,
+              },
+            );
+          }
+        });
       }
     }
 
@@ -365,6 +377,10 @@ export class EventsDisplay extends LitElement implements Layer {
     );
   }
 
+  private requestEventDuration(): Tick {
+    return Math.max(20, this.game.config().allianceRequestDuration() - 20);
+  }
+
   onDisplayMessageEvent(event: DisplayMessageUpdate) {
     const myPlayer = this.game.myPlayer();
     if (
@@ -462,12 +478,18 @@ export class EventsDisplay extends LitElement implements Layer {
       return;
     }
 
-    const requestor = this.game.playerBySmallID(
-      update.requestorID,
-    ) as PlayerView;
-    const recipient = this.game.playerBySmallID(
-      update.recipientID,
-    ) as PlayerView;
+    let requestor: PlayerView;
+    let recipient: PlayerView;
+    try {
+      requestor = this.game.playerBySmallID(update.requestorID) as PlayerView;
+      recipient = this.game.playerBySmallID(update.recipientID) as PlayerView;
+    } catch (error) {
+      console.warn("[EventsDisplay] invalid alliance request player IDs", {
+        update,
+        error,
+      });
+      return;
+    }
 
     this.addEvent({
       description: translateText("events_display.request_alliance", {
@@ -499,7 +521,7 @@ export class EventsDisplay extends LitElement implements Layer {
       type: MessageType.ALLIANCE_REQUEST,
       createdAt: this.game.ticks(),
       priority: 0,
-      duration: this.game.config().allianceRequestDuration() - 20, // 2 second buffer
+      duration: this.requestEventDuration(),
       shouldDelete: (game) => {
         // Recipient sent a separate request, so they became allied without the recipient responding.
         return requestor.isAlliedWith(recipient);
@@ -556,13 +578,20 @@ export class EventsDisplay extends LitElement implements Layer {
       return;
     }
 
-    const requestor = this.game.playerBySmallID(
-      update.requestorID,
-    ) as PlayerView;
-    const requestedTroops = Number(update.gold / 10n);
+    let requestor: PlayerView;
+    try {
+      requestor = this.game.playerBySmallID(update.requestorID) as PlayerView;
+    } catch (error) {
+      console.warn("[EventsDisplay] invalid troop purchase request player ID", {
+        update,
+        error,
+      });
+      return;
+    }
+    const requestedTroops = Number(update.gold);
 
     this.addEvent({
-      description: `${requestor.name()} requests to buy ${renderNumber(requestedTroops)} troops for ${renderNumber(update.gold)} gold`,
+      description: `${requestor.name()} requests to buy ${renderTroops(requestedTroops)} troops for ${renderNumber(update.gold)} gold`,
       buttons: [
         {
           text: translateText("events_display.focus"),
@@ -591,7 +620,7 @@ export class EventsDisplay extends LitElement implements Layer {
       type: MessageType.TROOP_BUY_REQUEST,
       createdAt: this.game.ticks(),
       priority: 0,
-      duration: this.game.config().allianceRequestDuration() - 20,
+      duration: this.requestEventDuration(),
       focusID: update.requestorID,
     });
   }
@@ -625,7 +654,7 @@ export class EventsDisplay extends LitElement implements Layer {
     this.addEvent({
       description: update.accepted
         ? update.troopsSent > 0
-          ? `${recipient.name()} accepted your troop purchase. Received ${renderNumber(update.troopsSent)} troops for ${renderNumber(update.goldPaid)} gold.`
+          ? `${recipient.name()} accepted your troop purchase. Received ${renderTroops(update.troopsSent)} troops for ${renderNumber(update.goldPaid)} gold.`
           : `${recipient.name()} accepted your troop purchase, but sent no troops.`
         : `${recipient.name()} rejected your troop purchase request.`,
       type: update.accepted

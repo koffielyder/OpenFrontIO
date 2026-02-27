@@ -59,12 +59,8 @@ describe("TroopPurchaseRequest", () => {
 
     expect(buyer.troops()).toBe(buyerTroopsBefore + sellerTroopsBefore);
     expect(seller.troops()).toBe(0);
-    expect(buyer.gold()).toBe(
-      buyerGoldBefore - BigInt(sellerTroopsBefore * 10),
-    );
-    expect(seller.gold()).toBe(
-      sellerGoldBefore + BigInt(sellerTroopsBefore * 10),
-    );
+    expect(buyer.gold()).toBe(buyerGoldBefore - BigInt(sellerTroopsBefore));
+    expect(seller.gold()).toBe(sellerGoldBefore + BigInt(sellerTroopsBefore));
   });
 
   test("reject keeps resources unchanged", () => {
@@ -83,5 +79,62 @@ describe("TroopPurchaseRequest", () => {
     expect(seller.troops()).toBe(sellerTroopsBefore);
     expect(buyer.gold()).toBe(buyerGoldBefore);
     expect(seller.gold()).toBe(sellerGoldBefore);
+  });
+
+  test("cannot request troops when buyer is already at max troops", () => {
+    seller.setTroops(20);
+    buyer.setTroops(game.config().maxTroops(buyer));
+
+    game.addExecution(new BuyTroopsRequestExecution(buyer, seller.id(), 200n));
+    game.executeNextTick();
+
+    expect(buyer.outgoingTroopPurchaseRequests().length).toBe(0);
+  });
+
+  test("can request troops without alliance", async () => {
+    const noAllianceGame = await setup(
+      "plains",
+      {
+        infiniteGold: false,
+        infiniteTroops: false,
+        donateTroops: true,
+      },
+      [
+        playerInfo("buyer_no_ally", PlayerType.Human),
+        playerInfo("seller_no_ally", PlayerType.Human),
+      ],
+    );
+
+    const noAllianceBuyer = noAllianceGame.player("buyer_no_ally");
+    const noAllianceSeller = noAllianceGame.player("seller_no_ally");
+
+    noAllianceBuyer.conquer(noAllianceGame.ref(0, 0));
+    noAllianceSeller.conquer(noAllianceGame.ref(0, 1));
+
+    while (noAllianceGame.inSpawnPhase()) {
+      noAllianceGame.executeNextTick();
+    }
+
+    noAllianceBuyer.addGold(500n);
+    noAllianceGame.addExecution(
+      new BuyTroopsRequestExecution(
+        noAllianceBuyer,
+        noAllianceSeller.id(),
+        200n,
+      ),
+    );
+    noAllianceGame.executeNextTick();
+
+    expect(noAllianceBuyer.outgoingTroopPurchaseRequests().length).toBe(1);
+  });
+
+  test("cannot request troops when seller embargoes buyer", () => {
+    seller.addEmbargo(buyer, false);
+    buyer.addGold(500n);
+
+    game.addExecution(new BuyTroopsRequestExecution(buyer, seller.id(), 200n));
+    game.executeNextTick();
+
+    expect(buyer.outgoingTroopPurchaseRequests().length).toBe(0);
   });
 });

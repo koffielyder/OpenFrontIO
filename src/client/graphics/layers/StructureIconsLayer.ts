@@ -22,6 +22,7 @@ import {
 import {
   GhostStructureChangedEvent,
   MouseMoveEvent,
+  MouseOverEvent,
   MouseUpEvent,
   ToggleStructureEvent as ToggleStructuresEvent,
 } from "../../InputHandler";
@@ -90,6 +91,17 @@ export class StructureIconsLayer implements Layer {
   private factory: SpriteFactory;
   private factoryResourceDotsByUnitId: Map<number, number> = new Map();
   private factoryDotsComputedAtTick = -1;
+  private hoverTooltip: HTMLDivElement | null = null;
+  private hoveredStationId: number | null = null;
+  private hoveredStatsTick = -1;
+  private hoveredStationStats: {
+    oreTotal: number;
+    grainTotal: number;
+    stoneTotal: number;
+    oreUsed: number;
+    grainUsed: number;
+    stoneUsed: number;
+  } | null = null;
   private readonly structures: Map<UnitType, { visible: boolean }> = new Map([
     [UnitType.City, { visible: true }],
     [UnitType.Factory, { visible: true }],
@@ -176,13 +188,208 @@ export class StructureIconsLayer implements Layer {
     this.eventBus.on(ToggleStructuresEvent, (e) =>
       this.toggleStructures(e.structureTypes),
     );
+    this.eventBus.on(MouseOverEvent, (e) => this.onMouseOver(e));
     this.eventBus.on(MouseMoveEvent, (e) => this.moveGhost(e));
 
     this.eventBus.on(MouseUpEvent, (e) => this.createStructure(e));
 
+    this.ensureHoverTooltip();
+
     window.addEventListener("resize", () => this.resizeCanvas());
     await this.setupRenderer();
     this.redraw();
+  }
+
+  private ensureHoverTooltip() {
+    if (this.hoverTooltip) {
+      return;
+    }
+    const tooltip = document.createElement("div");
+    tooltip.style.position = "fixed";
+    tooltip.style.pointerEvents = "none";
+    tooltip.style.display = "none";
+    tooltip.style.zIndex = "10050";
+    tooltip.style.background = "rgba(17, 24, 39, 0.95)";
+    tooltip.style.border = "1px solid rgba(75, 85, 99, 0.9)";
+    tooltip.style.borderRadius = "6px";
+    tooltip.style.padding = "6px 8px";
+    tooltip.style.color = "#f3f4f6";
+    tooltip.style.fontSize = "12px";
+    tooltip.style.minWidth = "190px";
+    tooltip.style.boxShadow = "0 4px 16px rgba(0,0,0,0.35)";
+    document.body.appendChild(tooltip);
+    this.hoverTooltip = tooltip;
+  }
+
+  private onMouseOver(event: MouseOverEvent) {
+    this.updateHoverTooltip(event.x, event.y);
+  }
+
+  private hideHoverTooltip() {
+    if (!this.hoverTooltip) {
+      return;
+    }
+    this.hoverTooltip.style.display = "none";
+    this.hoveredStationId = null;
+    this.hoveredStationStats = null;
+  }
+
+  private updateHoverTooltip(screenX: number, screenY: number) {
+    if (!this.hoverTooltip) {
+      return;
+    }
+    const world = this.transformHandler.screenToWorldCoordinates(
+      screenX,
+      screenY,
+    );
+    if (!this.game.isValidCoord(world.x, world.y)) {
+      this.hideHoverTooltip();
+      return;
+    }
+
+    const tile = this.game.ref(world.x, world.y);
+    const searchRange = Math.max(
+      4,
+      Math.round(14 / this.transformHandler.scale),
+    );
+    const nearby = this.game
+      .nearbyUnits(tile, searchRange, [UnitType.Factory, UnitType.Extractor])
+      .filter(({ unit }) => unit.isActive())
+      .sort((a, b) => a.distSquared - b.distSquared);
+
+    const station = nearby.at(0)?.unit;
+    if (!station) {
+      this.hideHoverTooltip();
+      return;
+    }
+
+    const currentTick = this.game.ticks();
+    if (
+      this.hoveredStationId !== station.id() ||
+      this.hoveredStatsTick !== currentTick
+    ) {
+      this.hoveredStationId = station.id();
+      this.hoveredStatsTick = currentTick;
+      this.hoveredStationStats = this.computeNetworkResourceStats(station);
+    }
+
+    if (!this.hoveredStationStats) {
+      this.hideHoverTooltip();
+      return;
+    }
+
+    const stats = this.hoveredStationStats;
+    const oreFree = Math.max(0, stats.oreTotal - stats.oreUsed);
+    const grainFree = Math.max(0, stats.grainTotal - stats.grainUsed);
+    const stoneFree = Math.max(0, stats.stoneTotal - stats.stoneUsed);
+
+    this.hoverTooltip.innerHTML =
+      `<div style="font-weight:700;margin-bottom:4px">Network Resources</div>` +
+      `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#c4b5fd">Ore</span><span>used ${stats.oreUsed} • free ${oreFree}</span></div>` +
+      `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#fde68a">Grain</span><span>used ${stats.grainUsed} • free ${grainFree}</span></div>` +
+      `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#d1d5db">Stone</span><span>used ${stats.stoneUsed} • free ${stoneFree}</span></div>`;
+    this.hoverTooltip.style.left = `${screenX + 12}px`;
+    this.hoverTooltip.style.top = `${screenY + 12}px`;
+    this.hoverTooltip.style.display = "block";
+  }
+
+  private computeNetworkResourceStats(anchor: UnitView) {
+    const ownerId = anchor.owner().id();
+    const stations = this.game
+      .units(UnitType.City, UnitType.Factory, UnitType.Port, UnitType.Extractor)
+      .filter((unit) => unit.isActive());
+    const stationById = new Map<number, UnitView>();
+    for (const station of stations) {
+      stationById.set(station.id(), station);
+    }
+    if (!stationById.has(anchor.id())) {
+      return null;
+    }
+
+    const maxRange = this.game.config().trainStationMaxRange();
+    const minRangeSquared = this.game.config().trainStationMinRange() ** 2;
+    const neighborsById = new Map<number, number[]>();
+    for (const station of stations) {
+      const neighbors = this.game
+        .nearbyUnits(station.tile(), maxRange, [
+          UnitType.City,
+          UnitType.Factory,
+          UnitType.Port,
+          UnitType.Extractor,
+        ])
+        .filter(
+          ({ unit, distSquared }) =>
+            unit.id() !== station.id() && distSquared > minRangeSquared,
+        )
+        .map(({ unit }) => unit.id());
+      neighborsById.set(station.id(), neighbors);
+    }
+
+    const componentIds: number[] = [];
+    const visited = new Set<number>([anchor.id()]);
+    const stack = [anchor.id()];
+    while (stack.length > 0) {
+      const currentId = stack.pop()!;
+      componentIds.push(currentId);
+      const neighbors = neighborsById.get(currentId) ?? [];
+      for (const nextId of neighbors) {
+        if (!visited.has(nextId) && stationById.has(nextId)) {
+          visited.add(nextId);
+          stack.push(nextId);
+        }
+      }
+    }
+
+    const componentStations = componentIds
+      .map((id) => stationById.get(id))
+      .filter((unit): unit is UnitView => unit !== undefined);
+    const ownerFactories = componentStations.filter(
+      (station) =>
+        station.type() === UnitType.Factory && station.owner().id() === ownerId,
+    );
+    const factoryLevels = ownerFactories.reduce(
+      (sum, station) => sum + station.level(),
+      0,
+    );
+
+    const seedKey = resourceSeedKeyFromGameConfig(
+      this.game.config().gameConfig(),
+    );
+    let oreTotal = 0;
+    let grainTotal = 0;
+    let stoneTotal = 0;
+    for (const station of componentStations) {
+      if (
+        station.type() !== UnitType.Extractor ||
+        station.owner().id() !== ownerId
+      ) {
+        continue;
+      }
+      const type = getResourceTypeAtTile(this.game, seedKey, station.tile());
+      if (type === null) {
+        continue;
+      }
+      switch (type) {
+        case ResourceType.Ore:
+          oreTotal += station.level();
+          break;
+        case ResourceType.Grain:
+          grainTotal += station.level();
+          break;
+        case ResourceType.Stone:
+          stoneTotal += station.level();
+          break;
+      }
+    }
+
+    return {
+      oreTotal,
+      grainTotal,
+      stoneTotal,
+      oreUsed: Math.min(oreTotal, factoryLevels),
+      grainUsed: Math.min(grainTotal, factoryLevels),
+      stoneUsed: Math.min(stoneTotal, factoryLevels),
+    };
   }
 
   resizeCanvas() {

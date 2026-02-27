@@ -4,6 +4,11 @@ import { EventBus } from "../../../core/EventBus";
 import { Gold, PlayerActions, UnitType } from "../../../core/game/Game";
 import { GameView } from "../../../core/game/GameView";
 import {
+  ResourceType,
+  getResourceTypeAtTile,
+  resourceSeedKeyFromGameConfig,
+} from "../../../core/game/ResourceNodes";
+import {
   GhostStructureChangedEvent,
   ToggleStructureEvent,
 } from "../../InputHandler";
@@ -49,6 +54,13 @@ export class UnitDisplay extends LitElement implements Layer {
   private _port = 0;
   private _defensePost = 0;
   private _samLauncher = 0;
+  private _ore = 0;
+  private _grain = 0;
+  private _stone = 0;
+  private _oreUsed = 0;
+  private _grainUsed = 0;
+  private _stoneUsed = 0;
+  private _resourceTooltipHovered = false;
   private allDisabled = false;
   private _hoveredUnit: UnitType | null = null;
 
@@ -115,7 +127,208 @@ export class UnitDisplay extends LitElement implements Layer {
     this._samLauncher = player.totalUnitLevels(UnitType.SAMLauncher);
     this._factories = player.totalUnitLevels(UnitType.Factory);
     this._warships = player.totalUnitLevels(UnitType.Warship);
+    const seedKey = resourceSeedKeyFromGameConfig(
+      this.game.config().gameConfig(),
+    );
+    const myPlayerId = player.id();
+    const stations = this.game
+      .units(UnitType.City, UnitType.Factory, UnitType.Port, UnitType.Extractor)
+      .filter((unit) => unit.isActive());
+
+    const stationById = new Map<number, (typeof stations)[number]>();
+    for (const station of stations) {
+      stationById.set(station.id(), station);
+    }
+
+    const maxRange = this.game.config().trainStationMaxRange();
+    const minRangeSquared = this.game.config().trainStationMinRange() ** 2;
+    const neighborsById = new Map<number, number[]>();
+
+    for (const station of stations) {
+      const neighbors = this.game
+        .nearbyUnits(station.tile(), maxRange, [
+          UnitType.City,
+          UnitType.Factory,
+          UnitType.Port,
+          UnitType.Extractor,
+        ])
+        .filter(
+          ({ unit, distSquared }) =>
+            unit.id() !== station.id() && distSquared > minRangeSquared,
+        )
+        .map(({ unit }) => unit.id());
+      neighborsById.set(station.id(), neighbors);
+    }
+
+    const components: number[][] = [];
+    const visited = new Set<number>();
+    for (const station of stations) {
+      const startId = station.id();
+      if (visited.has(startId)) {
+        continue;
+      }
+      const stack = [startId];
+      visited.add(startId);
+      const component: number[] = [];
+
+      while (stack.length > 0) {
+        const currentId = stack.pop()!;
+        component.push(currentId);
+        const neighbors = neighborsById.get(currentId) ?? [];
+        for (const nextId of neighbors) {
+          if (!visited.has(nextId) && stationById.has(nextId)) {
+            visited.add(nextId);
+            stack.push(nextId);
+          }
+        }
+      }
+
+      components.push(component);
+    }
+
+    let ore = 0;
+    let grain = 0;
+    let stone = 0;
+    let oreUsed = 0;
+    let grainUsed = 0;
+    let stoneUsed = 0;
+
+    for (const componentIds of components) {
+      const componentStations = componentIds
+        .map((id) => stationById.get(id))
+        .filter(
+          (unit): unit is (typeof stations)[number] => unit !== undefined,
+        );
+
+      const myFactories = componentStations.filter(
+        (station) =>
+          station.type() === UnitType.Factory &&
+          station.owner().id() === myPlayerId,
+      );
+      const factoryLevels = myFactories.reduce(
+        (sum, station) => sum + station.level(),
+        0,
+      );
+
+      let oreCapacity = 0;
+      let grainCapacity = 0;
+      let stoneCapacity = 0;
+
+      for (const station of componentStations) {
+        if (
+          station.type() !== UnitType.Extractor ||
+          station.owner().id() !== myPlayerId
+        ) {
+          continue;
+        }
+
+        const type = getResourceTypeAtTile(this.game, seedKey, station.tile());
+        if (type === null) {
+          continue;
+        }
+
+        switch (type) {
+          case ResourceType.Ore:
+            oreCapacity += station.level();
+            break;
+          case ResourceType.Grain:
+            grainCapacity += station.level();
+            break;
+          case ResourceType.Stone:
+            stoneCapacity += station.level();
+            break;
+        }
+      }
+
+      ore += oreCapacity;
+      grain += grainCapacity;
+      stone += stoneCapacity;
+
+      oreUsed += Math.min(oreCapacity, factoryLevels);
+      grainUsed += Math.min(grainCapacity, factoryLevels);
+      stoneUsed += Math.min(stoneCapacity, factoryLevels);
+    }
+
+    this._ore = ore;
+    this._grain = grain;
+    this._stone = stone;
+    this._oreUsed = oreUsed;
+    this._grainUsed = grainUsed;
+    this._stoneUsed = stoneUsed;
+
     this.requestUpdate();
+  }
+
+  private renderResourceBreakdownRow(
+    color: string,
+    label: string,
+    used: number,
+    total: number,
+  ) {
+    const free = Math.max(0, total - used);
+    return html`
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-1">
+          <span
+            class="inline-block w-2.5 h-2.5 rounded-full border border-black/70"
+            style=${`background:${color}`}
+          ></span>
+          <span class="text-gray-100">${label}</span>
+        </div>
+        <span class="text-gray-300">used ${used} • free ${free}</span>
+      </div>
+    `;
+  }
+
+  private renderResourceSummary() {
+    return html`
+      <div
+        class="relative bg-gray-800/70 backdrop-blur-xs rounded-lg px-2 py-1 text-white text-xs"
+        @mouseenter=${() => {
+          this._resourceTooltipHovered = true;
+          this.requestUpdate();
+        }}
+        @mouseleave=${() => {
+          this._resourceTooltipHovered = false;
+          this.requestUpdate();
+        }}
+      >
+        ${this._resourceTooltipHovered
+          ? html`
+              <div
+                class="absolute -top-26 left-1/2 -translate-x-1/2 bg-gray-900/95 border border-gray-700 rounded-sm px-2 py-1.5 min-w-52 z-20 shadow-lg"
+              >
+                <div class="text-gray-200 font-bold mb-1">Resources</div>
+                <div class="flex flex-col gap-1">
+                  ${this.renderResourceBreakdownRow(
+                    "#7c3aed",
+                    "Ore",
+                    this._oreUsed,
+                    this._ore,
+                  )}
+                  ${this.renderResourceBreakdownRow(
+                    "#ca8a04",
+                    "Grain",
+                    this._grainUsed,
+                    this._grain,
+                  )}
+                  ${this.renderResourceBreakdownRow(
+                    "#6b7280",
+                    "Stone",
+                    this._stoneUsed,
+                    this._stone,
+                  )}
+                </div>
+              </div>
+            `
+          : null}
+        <div class="flex items-center gap-3">
+          ${this.renderResourcePill("#7c3aed", this._ore)}
+          ${this.renderResourcePill("#ca8a04", this._grain)}
+          ${this.renderResourcePill("#6b7280", this._stone)}
+        </div>
+      </div>
+    `;
   }
 
   render() {
@@ -134,8 +347,9 @@ export class UnitDisplay extends LitElement implements Layer {
 
     return html`
       <div
-        class="hidden min-[1200px]:flex fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[1100] 2xl:flex-row xl:flex-col min-[1200px]:flex-col 2xl:gap-5 xl:gap-2 min-[1200px]:gap-2 justify-center items-center"
+        class="hidden min-[1200px]:flex fixed bottom-4 left-1/2 transform -translate-x-1/2 z-1100 2xl:flex-row xl:flex-col min-[1200px]:flex-col 2xl:gap-5 xl:gap-2 min-[1200px]:gap-2 justify-center items-center"
       >
+        ${this.renderResourceSummary()}
         <div class="bg-gray-800/70 backdrop-blur-xs rounded-lg p-0.5">
           <div class="grid grid-rows-1 auto-cols-max grid-flow-col gap-1 w-fit">
             ${this.renderUnitItem(
@@ -214,6 +428,18 @@ export class UnitDisplay extends LitElement implements Layer {
             )}
           </div>
         </div>
+      </div>
+    `;
+  }
+
+  private renderResourcePill(color: string, amount: number) {
+    return html`
+      <div class="flex items-center gap-1">
+        <span
+          class="inline-block w-2.5 h-2.5 rounded-full border border-black/70"
+          style=${`background:${color}`}
+        ></span>
+        <span class="text-gray-100">${renderNumber(BigInt(amount))}</span>
       </div>
     `;
   }

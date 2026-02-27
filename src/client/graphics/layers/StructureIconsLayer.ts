@@ -15,6 +15,11 @@ import { TileRef } from "../../../core/game/GameMap";
 import { GameUpdateType } from "../../../core/game/GameUpdates";
 import { GameView, UnitView } from "../../../core/game/GameView";
 import {
+  getResourceTypeAtTile,
+  resourceSeedKeyFromGameConfig,
+  ResourceType,
+} from "../../../core/game/ResourceNodes";
+import {
   GhostStructureChangedEvent,
   MouseMoveEvent,
   MouseUpEvent,
@@ -53,6 +58,7 @@ class StructureRenderInfo {
     public dotContainer: PIXI.Container,
     public level: number = 0,
     public underConstruction: boolean = true,
+    public factoryResourceDots: number = 0,
   ) {}
 }
 
@@ -82,6 +88,8 @@ export class StructureIconsLayer implements Layer {
   private readonly mousePos = { x: 0, y: 0 };
   private renderSprites = true;
   private factory: SpriteFactory;
+  private factoryResourceDotsByUnitId: Map<number, number> = new Map();
+  private factoryDotsComputedAtTick = -1;
   private readonly structures: Map<UnitType, { visible: boolean }> = new Map([
     [UnitType.City, { visible: true }],
     [UnitType.Factory, { visible: true }],
@@ -186,6 +194,8 @@ export class StructureIconsLayer implements Layer {
   }
 
   tick() {
+    this.recomputeFactoryResourceIndicators();
+
     this.game
       .updatesSinceLastTick()
       ?.[GameUpdateType.Unit]?.map((unit) => this.game.unit(unit.id))
@@ -198,6 +208,7 @@ export class StructureIconsLayer implements Layer {
           this.handleInactiveUnit(unitView);
         }
       });
+    this.refreshFactoryResourceDotRenders();
     this.renderSprites =
       this.game.config().userSettings()?.structureSprites() ?? true;
   }
@@ -566,6 +577,7 @@ export class StructureIconsLayer implements Layer {
         this.checkForDeletionState(render, unitView);
         this.checkForOwnershipChange(render, unitView);
         this.checkForLevelChange(render, unitView);
+        this.checkForFactoryResourceDotsChange(render, unitView);
       }
     } else if (this.structures.has(unitView.type())) {
       this.addNewStructure(unitView);
@@ -645,6 +657,8 @@ export class StructureIconsLayer implements Layer {
   private checkForLevelChange(render: StructureRenderInfo, unit: UnitView) {
     if (render.level !== unit.level()) {
       render.level = unit.level();
+      render.factoryResourceDots =
+        this.factoryResourceDotsByUnitId.get(unit.id()) ?? 0;
       render.iconContainer?.destroy();
       render.levelContainer?.destroy();
       render.dotContainer?.destroy();
@@ -652,6 +666,35 @@ export class StructureIconsLayer implements Layer {
       render.levelContainer = this.createLevelSprite(unit);
       render.dotContainer = this.createDotSprite(unit);
       this.modifyVisibility(render);
+    }
+  }
+
+  private checkForFactoryResourceDotsChange(
+    render: StructureRenderInfo,
+    unit: UnitView,
+  ) {
+    if (unit.type() !== UnitType.Factory) {
+      return;
+    }
+
+    const nextDots = this.factoryResourceDotsByUnitId.get(unit.id()) ?? 0;
+    if (nextDots === render.factoryResourceDots) {
+      return;
+    }
+
+    render.factoryResourceDots = nextDots;
+    render.iconContainer?.destroy();
+    render.levelContainer?.destroy();
+    render.dotContainer?.destroy();
+    render.iconContainer = this.createIconSprite(unit);
+    render.levelContainer = this.createLevelSprite(unit);
+    render.dotContainer = this.createDotSprite(unit);
+    this.modifyVisibility(render);
+  }
+
+  private refreshFactoryResourceDotRenders() {
+    for (const render of this.renders) {
+      this.checkForFactoryResourceDotsChange(render, render.unit);
     }
   }
 
@@ -716,6 +759,8 @@ export class StructureIconsLayer implements Layer {
 
   private addNewStructure(unitView: UnitView) {
     this.seenUnits.add(unitView);
+    const initialFactoryDots =
+      this.factoryResourceDotsByUnitId.get(unitView.id()) ?? 0;
     const render = new StructureRenderInfo(
       unitView,
       unitView.owner().id(),
@@ -724,6 +769,7 @@ export class StructureIconsLayer implements Layer {
       this.createDotSprite(unitView),
       unitView.level(),
       unitView.isUnderConstruction(),
+      initialFactoryDots,
     );
     this.renders.push(render);
     this.computeNewLocation(render);
@@ -731,24 +777,241 @@ export class StructureIconsLayer implements Layer {
   }
 
   private createLevelSprite(unit: UnitView): PIXI.Container {
-    return this.factory.createUnitContainer(unit, {
+    const container = this.factory.createUnitContainer(unit, {
       type: "level",
       stage: this.levelsStage,
     });
+    this.addFactoryResourceDots(container, unit, true);
+    return container;
   }
 
   private createDotSprite(unit: UnitView): PIXI.Container {
-    return this.factory.createUnitContainer(unit, {
+    const container = this.factory.createUnitContainer(unit, {
       type: "dot",
       stage: this.dotsStage,
     });
+    this.addFactoryResourceDots(container, unit, false, true);
+    return container;
   }
 
   private createIconSprite(unit: UnitView): PIXI.Container {
-    return this.factory.createUnitContainer(unit, {
+    const container = this.factory.createUnitContainer(unit, {
       type: "icon",
       stage: this.iconsStage,
     });
+    this.addFactoryResourceDots(container, unit, false);
+    return container;
+  }
+
+  private addFactoryResourceDots(
+    container: PIXI.Container,
+    unit: UnitView,
+    isLevelSprite: boolean,
+    isDotSprite: boolean = false,
+  ) {
+    if (unit.type() !== UnitType.Factory) {
+      return;
+    }
+
+    this.recomputeFactoryResourceIndicators();
+    const dotsCount = this.factoryResourceDotsByUnitId.get(unit.id()) ?? 0;
+    if (dotsCount <= 0) {
+      return;
+    }
+
+    const group = new PIXI.Container();
+    const dotSpacing = isDotSprite ? 6 : 8;
+    const dotRadius = isDotSprite ? 2 : 2.5;
+    const startX = -((dotsCount - 1) * dotSpacing) / 2;
+    const offsetY = isDotSprite ? 8 : isLevelSprite ? 24 : 16;
+
+    for (let i = 0; i < dotsCount; i++) {
+      const dot = new PIXI.Graphics();
+      dot
+        .circle(0, 0, dotRadius)
+        .fill({ color: 0xf9fafb, alpha: 0.95 })
+        .stroke({ width: 1, color: 0x111827, alpha: 0.85 });
+      dot.position.set(startX + i * dotSpacing, 0);
+      group.addChild(dot);
+    }
+
+    group.position.set(0, offsetY);
+    container.addChild(group);
+  }
+
+  private recomputeFactoryResourceIndicators() {
+    const tick = this.game.ticks();
+    if (this.factoryDotsComputedAtTick === tick) {
+      return;
+    }
+    this.factoryDotsComputedAtTick = tick;
+
+    const stations = this.game
+      .units(UnitType.City, UnitType.Factory, UnitType.Port, UnitType.Extractor)
+      .filter((unit) => unit.isActive());
+
+    const stationById = new Map<number, UnitView>();
+    for (const station of stations) {
+      stationById.set(station.id(), station);
+    }
+
+    const maxRange = this.game.config().trainStationMaxRange();
+    const minRangeSquared = this.game.config().trainStationMinRange() ** 2;
+    const neighborsById = new Map<number, number[]>();
+
+    for (const station of stations) {
+      const neighbors = this.game
+        .nearbyUnits(station.tile(), maxRange, [
+          UnitType.City,
+          UnitType.Factory,
+          UnitType.Port,
+          UnitType.Extractor,
+        ])
+        .filter(
+          ({ unit, distSquared }) =>
+            unit.id() !== station.id() && distSquared > minRangeSquared,
+        )
+        .map(({ unit }) => unit.id());
+      neighborsById.set(station.id(), neighbors);
+    }
+
+    const components: number[][] = [];
+    const visited = new Set<number>();
+    for (const station of stations) {
+      const startId = station.id();
+      if (visited.has(startId)) {
+        continue;
+      }
+      const stack = [startId];
+      visited.add(startId);
+      const component: number[] = [];
+
+      while (stack.length > 0) {
+        const currentId = stack.pop()!;
+        component.push(currentId);
+        const neighbors = neighborsById.get(currentId) ?? [];
+        for (const nextId of neighbors) {
+          if (!visited.has(nextId) && stationById.has(nextId)) {
+            visited.add(nextId);
+            stack.push(nextId);
+          }
+        }
+      }
+
+      components.push(component);
+    }
+
+    const seedKey = resourceSeedKeyFromGameConfig(
+      this.game.config().gameConfig(),
+    );
+    const dotsByFactoryId = new Map<number, number>();
+
+    for (const componentIds of components) {
+      const componentStations = componentIds
+        .map((id) => stationById.get(id))
+        .filter((unit): unit is UnitView => unit !== undefined);
+
+      const ownerIds = new Set(
+        componentStations.map((unit) => unit.owner().id()),
+      );
+      for (const ownerId of ownerIds) {
+        const ownerFactories = componentStations
+          .filter(
+            (station) =>
+              station.type() === UnitType.Factory &&
+              station.owner().id() === ownerId &&
+              station.isActive(),
+          )
+          .sort((a, b) => a.id() - b.id());
+
+        if (ownerFactories.length === 0) {
+          continue;
+        }
+
+        const totalFactoryLevels = ownerFactories.reduce(
+          (sum, station) => sum + station.level(),
+          0,
+        );
+        if (totalFactoryLevels <= 0) {
+          continue;
+        }
+
+        const capacityByType = new Map<ResourceType, number>();
+        for (const station of componentStations) {
+          if (
+            station.type() !== UnitType.Extractor ||
+            station.owner().id() !== ownerId ||
+            !station.isActive()
+          ) {
+            continue;
+          }
+
+          const resource = getResourceTypeAtTile(
+            this.game,
+            seedKey,
+            station.tile(),
+          );
+          if (resource === null) {
+            continue;
+          }
+          const existingCapacity = capacityByType.get(resource) ?? 0;
+          capacityByType.set(resource, existingCapacity + station.level());
+        }
+
+        const resourcesPerFactoryLevel = Array.from(
+          { length: totalFactoryLevels },
+          () => new Set<ResourceType>(),
+        );
+        const capacities = Array.from(capacityByType.entries()).sort(
+          ([a], [b]) => a.localeCompare(b),
+        );
+
+        for (const [resource, capacity] of capacities) {
+          for (let remaining = capacity; remaining > 0; remaining--) {
+            let bestFactoryLevel = -1;
+            let bestResourceCount = -1;
+
+            for (
+              let factoryLevel = 0;
+              factoryLevel < totalFactoryLevels;
+              factoryLevel++
+            ) {
+              const assignedResources = resourcesPerFactoryLevel[factoryLevel];
+              if (assignedResources.has(resource)) {
+                continue;
+              }
+
+              const assignedCount = assignedResources.size;
+              if (assignedCount > bestResourceCount) {
+                bestResourceCount = assignedCount;
+                bestFactoryLevel = factoryLevel;
+              }
+            }
+
+            if (bestFactoryLevel === -1) {
+              break;
+            }
+
+            resourcesPerFactoryLevel[bestFactoryLevel].add(resource);
+          }
+        }
+
+        let levelStart = 0;
+        for (const factory of ownerFactories) {
+          let leastConnected = 3;
+          for (let i = 0; i < factory.level(); i++) {
+            leastConnected = Math.min(
+              leastConnected,
+              resourcesPerFactoryLevel[levelStart + i].size,
+            );
+          }
+          dotsByFactoryId.set(factory.id(), Math.max(0, leastConnected));
+          levelStart += factory.level();
+        }
+      }
+    }
+
+    this.factoryResourceDotsByUnitId = dotsByFactoryId;
   }
 
   private deleteStructure(render: StructureRenderInfo) {

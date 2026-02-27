@@ -40,6 +40,48 @@ const BUILDABLE_UNITS: UnitType[] = [
   UnitType.MIRV,
 ];
 
+function grainUsedByBarracksLevels(
+  barracksLevels: number,
+  availableGrain: number,
+): number {
+  let used = 0;
+  let poweredLevels = 0;
+  let requiredForNextLevel = 1;
+
+  while (
+    poweredLevels < barracksLevels &&
+    availableGrain >= requiredForNextLevel
+  ) {
+    availableGrain -= requiredForNextLevel;
+    used += requiredForNextLevel;
+    poweredLevels++;
+    requiredForNextLevel *= 2;
+  }
+
+  return used;
+}
+
+function stoneUsedByDefenseDepartmentLevels(
+  defenseDepartmentLevels: number,
+  availableStone: number,
+): number {
+  let used = 0;
+  let poweredLevels = 0;
+  let requiredForNextLevel = 1;
+
+  while (
+    poweredLevels < defenseDepartmentLevels &&
+    availableStone >= requiredForNextLevel
+  ) {
+    availableStone -= requiredForNextLevel;
+    used += requiredForNextLevel;
+    poweredLevels++;
+    requiredForNextLevel *= 2;
+  }
+
+  return used;
+}
+
 @customElement("unit-display")
 export class UnitDisplay extends LitElement implements Layer {
   public game: GameView;
@@ -132,7 +174,14 @@ export class UnitDisplay extends LitElement implements Layer {
     );
     const myPlayerId = player.id();
     const stations = this.game
-      .units(UnitType.City, UnitType.Factory, UnitType.Port, UnitType.Extractor)
+      .units(
+        UnitType.City,
+        UnitType.Factory,
+        UnitType.Port,
+        UnitType.Extractor,
+        UnitType.Barracks,
+        UnitType.DefenseDepartment,
+      )
       .filter((unit) => unit.isActive());
 
     const stationById = new Map<number, (typeof stations)[number]>();
@@ -151,6 +200,8 @@ export class UnitDisplay extends LitElement implements Layer {
           UnitType.Factory,
           UnitType.Port,
           UnitType.Extractor,
+          UnitType.Barracks,
+          UnitType.DefenseDepartment,
         ])
         .filter(
           ({ unit, distSquared }) =>
@@ -209,6 +260,24 @@ export class UnitDisplay extends LitElement implements Layer {
         (sum, station) => sum + station.level(),
         0,
       );
+      const myBarracks = componentStations.filter(
+        (station) =>
+          station.type() === UnitType.Barracks &&
+          station.owner().id() === myPlayerId,
+      );
+      const barracksLevels = myBarracks.reduce(
+        (sum, station) => sum + station.level(),
+        0,
+      );
+      const myDefenseDepartments = componentStations.filter(
+        (station) =>
+          station.type() === UnitType.DefenseDepartment &&
+          station.owner().id() === myPlayerId,
+      );
+      const defenseDepartmentLevels = myDefenseDepartments.reduce(
+        (sum, station) => sum + station.level(),
+        0,
+      );
 
       let oreCapacity = 0;
       let grainCapacity = 0;
@@ -245,8 +314,26 @@ export class UnitDisplay extends LitElement implements Layer {
       stone += stoneCapacity;
 
       oreUsed += Math.min(oreCapacity, factoryLevels);
-      grainUsed += Math.min(grainCapacity, factoryLevels);
-      stoneUsed += Math.min(stoneCapacity, factoryLevels);
+      const grainUsedByFactories = Math.min(grainCapacity, factoryLevels);
+      const grainLeftForBarracks = Math.max(
+        0,
+        grainCapacity - grainUsedByFactories,
+      );
+      const grainUsedByBarracks = grainUsedByBarracksLevels(
+        barracksLevels,
+        grainLeftForBarracks,
+      );
+      grainUsed += grainUsedByFactories + grainUsedByBarracks;
+      const stoneUsedByFactories = Math.min(stoneCapacity, factoryLevels);
+      const stoneLeftForDefenseDepartment = Math.max(
+        0,
+        stoneCapacity - stoneUsedByFactories,
+      );
+      const stoneUsedByDefenseDepartment = stoneUsedByDefenseDepartmentLevels(
+        defenseDepartmentLevels,
+        stoneLeftForDefenseDepartment,
+      );
+      stoneUsed += stoneUsedByFactories + stoneUsedByDefenseDepartment;
     }
 
     this._ore = ore;

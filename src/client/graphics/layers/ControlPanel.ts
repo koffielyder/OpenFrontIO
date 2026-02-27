@@ -1,8 +1,13 @@
-import { LitElement, html } from "lit";
+import { html, LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { EventBus } from "../../../core/EventBus";
-import { Gold } from "../../../core/game/Game";
+import { Gold, UnitType } from "../../../core/game/Game";
 import { GameView } from "../../../core/game/GameView";
+import {
+  getResourceTypeAtTile,
+  resourceSeedKeyFromGameConfig,
+  ResourceType,
+} from "../../../core/game/ResourceNodes";
 import { ClientID } from "../../../core/Schemas";
 import { AttackRatioEvent } from "../../InputHandler";
 import { renderNumber, renderTroops } from "../../Utils";
@@ -11,6 +16,25 @@ import { Layer } from "./Layer";
 import goldCoinIcon from "/images/GoldCoinIcon.svg?url";
 import soldierIcon from "/images/SoldierIcon.svg?url";
 import swordIcon from "/images/SwordIcon.svg?url";
+
+function activeBarracksLevelsFromGrain(
+  barracksLevels: number,
+  availableGrain: number,
+): number {
+  let activeLevels = 0;
+  let requiredForNextLevel = 1;
+
+  while (
+    activeLevels < barracksLevels &&
+    availableGrain >= requiredForNextLevel
+  ) {
+    availableGrain -= requiredForNextLevel;
+    activeLevels++;
+    requiredForNextLevel *= 2;
+  }
+
+  return activeLevels;
+}
 
 @customElement("control-panel")
 export class ControlPanel extends LitElement implements Layer {
@@ -88,7 +112,8 @@ export class ControlPanel extends LitElement implements Layer {
       return;
     }
 
-    this.updateTroopIncrease();
+    const activeBarracks = this.activeBarracksLevelsForPlayer(player.id());
+    this.updateTroopIncrease(activeBarracks);
 
     this._maxTroops = this.game.config().maxTroops(player);
     this._gold = player.gold();
@@ -97,17 +122,149 @@ export class ControlPanel extends LitElement implements Layer {
       .outgoingAttacks()
       .map((a) => a.troops)
       .reduce((a, b) => a + b, 0);
-    this.troopRate = this.game.config().troopIncreaseRate(player) * 10;
+    const baseTroopRate = this.game.config().troopIncreaseRate(player);
+    this.troopRate =
+      Math.max(0, Math.floor(baseTroopRate * (1 + activeBarracks))) * 10;
     this.requestUpdate();
   }
 
-  private updateTroopIncrease() {
+  private updateTroopIncrease(activeBarracks: number) {
     const player = this.game?.myPlayer();
     if (player === null) return;
-    const troopIncreaseRate = this.game.config().troopIncreaseRate(player);
+    const baseTroopRate = this.game.config().troopIncreaseRate(player);
+    const troopIncreaseRate = Math.max(
+      0,
+      Math.floor(baseTroopRate * (1 + activeBarracks)),
+    );
     this._troopRateIsIncreasing =
       troopIncreaseRate >= this._lastTroopIncreaseRate;
     this._lastTroopIncreaseRate = troopIncreaseRate;
+  }
+
+  private activeBarracksLevelsForPlayer(playerId: string): number {
+    const stations = this.game
+      .units(
+        UnitType.City,
+        UnitType.Factory,
+        UnitType.Port,
+        UnitType.Extractor,
+        UnitType.Barracks,
+        UnitType.DefenseDepartment,
+      )
+      .filter((unit) => unit.isActive());
+
+    const stationById = new Map<number, (typeof stations)[number]>();
+    for (const station of stations) {
+      stationById.set(station.id(), station);
+    }
+
+    const maxRange = this.game.config().trainStationMaxRange();
+    const minRangeSquared = this.game.config().trainStationMinRange() ** 2;
+    const neighborsById = new Map<number, number[]>();
+
+    for (const station of stations) {
+      const neighbors = this.game
+        .nearbyUnits(station.tile(), maxRange, [
+          UnitType.City,
+          UnitType.Factory,
+          UnitType.Port,
+          UnitType.Extractor,
+          UnitType.Barracks,
+          UnitType.DefenseDepartment,
+        ])
+        .filter(
+          ({ unit, distSquared }) =>
+            unit.id() !== station.id() && distSquared > minRangeSquared,
+        )
+        .map(({ unit }) => unit.id());
+      neighborsById.set(station.id(), neighbors);
+    }
+
+    const components: number[][] = [];
+    const visited = new Set<number>();
+    for (const station of stations) {
+      const startId = station.id();
+      if (visited.has(startId)) {
+        continue;
+      }
+      const stack = [startId];
+      visited.add(startId);
+      const component: number[] = [];
+
+      while (stack.length > 0) {
+        const currentId = stack.pop()!;
+        component.push(currentId);
+        const neighbors = neighborsById.get(currentId) ?? [];
+        for (const nextId of neighbors) {
+          if (!visited.has(nextId) && stationById.has(nextId)) {
+            visited.add(nextId);
+            stack.push(nextId);
+          }
+        }
+      }
+
+      components.push(component);
+    }
+
+    const seedKey = resourceSeedKeyFromGameConfig(
+      this.game.config().gameConfig(),
+    );
+    let totalActiveBarracks = 0;
+
+    for (const componentIds of components) {
+      const componentStations = componentIds
+        .map((id) => stationById.get(id))
+        .filter(
+          (unit): unit is (typeof stations)[number] => unit !== undefined,
+        );
+
+      const factoryLevels = componentStations
+        .filter(
+          (station) =>
+            station.type() === UnitType.Factory &&
+            station.owner().id() === playerId,
+        )
+        .reduce((sum, station) => sum + station.level(), 0);
+
+      const barracksLevels = componentStations
+        .filter(
+          (station) =>
+            station.type() === UnitType.Barracks &&
+            station.owner().id() === playerId,
+        )
+        .reduce((sum, station) => sum + station.level(), 0);
+
+      let grainCapacity = 0;
+      for (const station of componentStations) {
+        if (
+          station.type() !== UnitType.Extractor ||
+          station.owner().id() !== playerId
+        ) {
+          continue;
+        }
+
+        const resource = getResourceTypeAtTile(
+          this.game,
+          seedKey,
+          station.tile(),
+        );
+        if (resource === ResourceType.Grain) {
+          grainCapacity += station.level();
+        }
+      }
+
+      const grainUsedByFactories = Math.min(grainCapacity, factoryLevels);
+      const grainLeftForBarracks = Math.max(
+        0,
+        grainCapacity - grainUsedByFactories,
+      );
+      totalActiveBarracks += activeBarracksLevelsFromGrain(
+        barracksLevels,
+        grainLeftForBarracks,
+      );
+    }
+
+    return totalActiveBarracks;
   }
 
   onAttackRatioChange(newRatio: number) {

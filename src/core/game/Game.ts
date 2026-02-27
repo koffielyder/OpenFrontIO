@@ -260,6 +260,8 @@ export enum UnitType {
   Train = "Train",
   Factory = "Factory",
   Extractor = "Extractor",
+  Barracks = "Barracks",
+  DefenseDepartment = "Defence Department",
 }
 
 export enum TrainType {
@@ -276,12 +278,36 @@ const _structureTypes: ReadonlySet<UnitType> = new Set([
   UnitType.Port,
   UnitType.Factory,
   UnitType.Extractor,
+  UnitType.Barracks,
+  UnitType.DefenseDepartment,
 ]);
 
 export const StructureTypes: readonly UnitType[] = [..._structureTypes];
 
 export function isStructureType(type: UnitType): boolean {
   return _structureTypes.has(type);
+}
+
+const _uniqueUpgradeBuildingTypes: ReadonlySet<UnitType> = new Set([
+  UnitType.Barracks,
+  UnitType.DefenseDepartment,
+]);
+
+const _uniqueUpgradeBuildingMaxLevels: ReadonlyMap<UnitType, number> = new Map([
+  [UnitType.Barracks, 5],
+  [UnitType.DefenseDepartment, 5],
+]);
+
+export const UniqueUpgradeBuildingTypes: readonly UnitType[] = [
+  ..._uniqueUpgradeBuildingTypes,
+];
+
+export function isUniqueUpgradeBuildingType(type: UnitType): boolean {
+  return _uniqueUpgradeBuildingTypes.has(type);
+}
+
+export function uniqueUpgradeBuildingMaxLevel(type: UnitType): number | null {
+  return _uniqueUpgradeBuildingMaxLevels.get(type) ?? null;
 }
 
 export interface OwnerComp {
@@ -332,6 +358,10 @@ export interface UnitParamsMap {
   [UnitType.Factory]: Record<string, never>;
 
   [UnitType.Extractor]: Record<string, never>;
+
+  [UnitType.Barracks]: Record<string, never>;
+
+  [UnitType.DefenseDepartment]: Record<string, never>;
 
   [UnitType.MissileSilo]: Record<string, never>;
 

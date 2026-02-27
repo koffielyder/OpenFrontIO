@@ -24,6 +24,7 @@ import {
   GameMode,
   Gold,
   isStructureType,
+  isUniqueUpgradeBuildingType,
   MessageType,
   MutableAlliance,
   Player,
@@ -36,6 +37,7 @@ import {
   Team,
   TerraNullius,
   Tick,
+  uniqueUpgradeBuildingMaxLevel,
   Unit,
   UnitParams,
   UnitType,
@@ -992,6 +994,21 @@ export class PlayerImpl implements Player {
   }
 
   public findUnitToUpgrade(type: UnitType, targetTile: TileRef): Unit | false {
+    if (isUniqueUpgradeBuildingType(type)) {
+      const existing = this.mg
+        .nearbyUnits(targetTile, 10, type, undefined, true)
+        .filter((candidate) => candidate.unit.owner() === this)
+        .sort((a, b) => a.distSquared - b.distSquared)
+        .at(0)?.unit;
+      if (!existing) {
+        return false;
+      }
+      if (!this.canUpgradeUnit(existing)) {
+        return false;
+      }
+      return existing;
+    }
+
     const range = this.mg.config().structureMinDist();
     const existing = this.mg
       .nearbyUnits(targetTile, range, type, undefined, true)
@@ -1026,6 +1043,12 @@ export class PlayerImpl implements Player {
     }
     if (unit.owner() !== this) {
       return false;
+    }
+    if (isUniqueUpgradeBuildingType(unit.type())) {
+      const maxLevel = uniqueUpgradeBuildingMaxLevel(unit.type());
+      if (maxLevel !== null && unit.level() >= maxLevel) {
+        return false;
+      }
     }
     return true;
   }
@@ -1086,6 +1109,10 @@ export class PlayerImpl implements Player {
       return false;
     }
 
+    if (isUniqueUpgradeBuildingType(unitType) && this.unitCount(unitType) > 0) {
+      return false;
+    }
+
     const cost = this.mg.unitInfo(unitType).cost(this.mg, this);
     if (
       unitType !== UnitType.MIRVWarhead &&
@@ -1122,6 +1149,8 @@ export class PlayerImpl implements Player {
       case UnitType.SAMLauncher:
       case UnitType.City:
       case UnitType.Factory:
+      case UnitType.Barracks:
+      case UnitType.DefenseDepartment:
         return this.landBasedStructureSpawn(targetTile, validTiles);
       case UnitType.Extractor:
         return this.extractorSpawn(targetTile, validTiles);

@@ -1,10 +1,11 @@
-import { LitElement, css, html } from "lit";
+import { css, html, LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { translateText } from "../../../client/Utils";
 import { EventBus } from "../../../core/EventBus";
 import {
   BuildableUnit,
   Gold,
+  isUniqueUpgradeBuildingType,
   PlayerActions,
   UnitType,
 } from "../../../core/game/Game";
@@ -121,6 +122,20 @@ export const buildTable: BuildItemDisplay[][] = [
       icon: factoryIcon,
       description: "build_menu.desc.extractor",
       key: "unit_type.extractor",
+      countable: true,
+    },
+    {
+      unitType: UnitType.Barracks,
+      icon: shieldIcon,
+      description: "build_menu.desc.barracks",
+      key: "unit_type.barracks",
+      countable: true,
+    },
+    {
+      unitType: UnitType.DefenseDepartment,
+      icon: shieldIcon,
+      description: "build_menu.desc.defence_department",
+      key: "unit_type.defence_department",
       countable: true,
     },
   ],
@@ -416,6 +431,18 @@ export class BuildMenu extends LitElement implements Layer {
     this.hideMenu();
   }
 
+  private disabledReason(buildableUnit: BuildableUnit): string {
+    const player = this.game?.myPlayer();
+    if (
+      player &&
+      isUniqueUpgradeBuildingType(buildableUnit.type) &&
+      player.totalUnitLevels(buildableUnit.type) > 0
+    ) {
+      return translateText("build_menu.unique_exists");
+    }
+    return translateText("build_menu.not_enough_money");
+  }
+
   render() {
     return html`
       <div
@@ -441,9 +468,7 @@ export class BuildMenu extends LitElement implements Layer {
                     @click=${() =>
                       this.sendBuildOrUpgrade(buildableUnit, this.clickedTile)}
                     ?disabled=${!enabled}
-                    title=${!enabled
-                      ? translateText("build_menu.not_enough_money")
-                      : ""}
+                    title=${!enabled ? this.disabledReason(buildableUnit) : ""}
                   >
                     <img
                       src=${item.icon}

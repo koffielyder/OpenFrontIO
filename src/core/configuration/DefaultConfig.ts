@@ -1,5 +1,6 @@
 import { JWK } from "jose";
 import { z } from "zod";
+import { activeDefenseDepartmentLevels } from "../game/BarracksBonuses";
 import {
   Difficulty,
   Game,
@@ -209,6 +210,10 @@ export class DefaultConfig implements Config {
 
   defensePostRange(): number {
     return 30;
+  }
+
+  defenseDepartmentRangeBonusPerLevel(): number {
+    return 8;
   }
 
   defensePostDefenseBonus(): number {
@@ -459,6 +464,28 @@ export class DefaultConfig implements Config {
           upgradable: true,
         };
         break;
+      case UnitType.Barracks:
+        info = {
+          cost: this.costWrapper(
+            (numUnits: number) =>
+              Math.min(1_000_000, Math.pow(2, numUnits) * 125_000),
+            UnitType.Barracks,
+          ),
+          constructionDuration: this.instantBuild() ? 0 : 2 * 10,
+          upgradable: true,
+        };
+        break;
+      case UnitType.DefenseDepartment:
+        info = {
+          cost: this.costWrapper(
+            (numUnits: number) =>
+              Math.min(1_000_000, Math.pow(2, numUnits) * 125_000),
+            UnitType.DefenseDepartment,
+          ),
+          constructionDuration: this.instantBuild() ? 0 : 2 * 10,
+          upgradable: true,
+        };
+        break;
       case UnitType.Train:
         info = {
           cost: () => 0n,
@@ -589,9 +616,17 @@ export class DefaultConfig implements Config {
         throw new Error(`terrain type ${type} not supported`);
     }
     if (defender.isPlayer()) {
+      const activeDefenseDepartments = activeDefenseDepartmentLevels(
+        gm,
+        defender,
+      );
+      const defensePostRange =
+        gm.config().defensePostRange() +
+        activeDefenseDepartments *
+          gm.config().defenseDepartmentRangeBonusPerLevel();
       for (const dp of gm.nearbyUnits(
         tileToConquer,
-        gm.config().defensePostRange(),
+        defensePostRange,
         UnitType.DefensePost,
       )) {
         if (dp.unit.owner() === defender) {

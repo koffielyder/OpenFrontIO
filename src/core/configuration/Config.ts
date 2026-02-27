@@ -138,6 +138,7 @@ export interface Config {
   railroadMaxSize(): number;
   safeFromPiratesCooldownMax(): number;
   defensePostRange(): number;
+  defenseDepartmentRangeBonusPerLevel(): number;
   SAMCooldown(): number;
   SiloCooldown(): number;
   minDistanceBetweenPlayers(): number;

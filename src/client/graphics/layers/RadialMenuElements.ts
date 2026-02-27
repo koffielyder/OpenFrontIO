@@ -1,6 +1,7 @@
 import { Config } from "../../../core/configuration/Config";
 import {
   AllPlayers,
+  isUniqueUpgradeBuildingType,
   PlayerActions,
   StructureTypes,
   UnitType,
@@ -406,7 +407,7 @@ const ATTACK_UNIT_TYPES: UnitType[] = [
 
 function createMenuElements(
   params: MenuElementParams,
-  filterType: "attack" | "build",
+  filterType: "attack" | "build" | "upgrade",
   elementIdPrefix: string,
 ): MenuElement[] {
   const unitTypes: Set<UnitType> = getAllEnabledUnits(
@@ -420,7 +421,11 @@ function createMenuElements(
         unitTypes.has(item.unitType) &&
         (filterType === "attack"
           ? ATTACK_UNIT_TYPES.includes(item.unitType)
-          : !ATTACK_UNIT_TYPES.includes(item.unitType)),
+          : filterType === "build"
+            ? !ATTACK_UNIT_TYPES.includes(item.unitType) &&
+              !isUniqueUpgradeBuildingType(item.unitType)
+            : !ATTACK_UNIT_TYPES.includes(item.unitType) &&
+              isUniqueUpgradeBuildingType(item.unitType)),
     )
     .map((item: BuildItemDisplay) => {
       const canBuildOrUpgrade = params.buildMenu.canBuildOrUpgrade(item);
@@ -467,6 +472,25 @@ function createMenuElements(
       };
     });
 }
+
+const upgradesMenuElement: MenuElement = {
+  id: "build_upgrades",
+  name: "upgrades",
+  disabled: (params: MenuElementParams) =>
+    params.game.inSpawnPhase() ||
+    createMenuElements(params, "upgrade", "upgrade").length === 0,
+  color: COLORS.build,
+  icon: buildIcon,
+  tooltipItems: [
+    { text: translateText("build_menu.upgrades_title"), className: "title" },
+    {
+      text: translateText("build_menu.upgrades_desc"),
+      className: "description",
+    },
+  ],
+  subMenu: (params: MenuElementParams) =>
+    createMenuElements(params, "upgrade", "upgrade"),
+};
 
 export const attackMenuElement: MenuElement = {
   id: Slot.Attack,
@@ -581,7 +605,10 @@ export const buildMenuElement: MenuElement = {
 
   subMenu: (params: MenuElementParams) => {
     if (params === undefined) return [];
-    return createMenuElements(params, "build", "build");
+    return [
+      ...createMenuElements(params, "build", "build"),
+      upgradesMenuElement,
+    ];
   },
 };
 

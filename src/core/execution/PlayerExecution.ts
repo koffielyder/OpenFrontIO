@@ -1,4 +1,5 @@
 import { Config } from "../configuration/Config";
+import { activeBarracksLevels } from "../game/BarracksBonuses";
 import {
   Cell,
   Execution,
@@ -73,7 +74,10 @@ export class PlayerExecution implements Execution {
       return;
     }
 
-    const troopInc = this.config.troopIncreaseRate(this.player);
+    const baseTroopInc = this.config.troopIncreaseRate(this.player);
+    const activeBarracks = activeBarracksLevels(this.mg, this.player);
+    const barracksMultiplier = 1 + activeBarracks;
+    const troopInc = Math.max(0, Math.floor(baseTroopInc * barracksMultiplier));
     this.player.addTroops(troopInc);
     const goldFromWorkers = this.config.goldAdditionRate(this.player);
     this.player.addGold(goldFromWorkers);

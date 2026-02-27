@@ -217,6 +217,7 @@ export class InputHandler {
       altKey: "AltLeft",
       buildCity: "Digit1",
       buildFactory: "Digit2",
+      buildBarracks: "KeyV",
       buildExtractor: "KeyX",
       buildPort: "Digit3",
       buildDefensePost: "Digit4",
@@ -407,6 +408,11 @@ export class InputHandler {
       if (e.code === this.keybinds.buildExtractor) {
         e.preventDefault();
         this.setGhostStructure(UnitType.Extractor);
+      }
+
+      if (e.code === this.keybinds.buildBarracks) {
+        e.preventDefault();
+        this.setGhostStructure(UnitType.Barracks);
       }
 
       if (e.code === this.keybinds.buildPort) {

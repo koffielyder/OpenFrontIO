@@ -83,6 +83,8 @@ export function createTrainStopHandlers(
     [UnitType.Port]: new TradeStationStopHandler(),
     [UnitType.Factory]: new FactoryStopHandler(),
     [UnitType.Extractor]: new FactoryStopHandler(),
+    [UnitType.Barracks]: new FactoryStopHandler(),
+    [UnitType.DefenseDepartment]: new FactoryStopHandler(),
   };
 }
 

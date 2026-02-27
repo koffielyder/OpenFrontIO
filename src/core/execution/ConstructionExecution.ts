@@ -1,6 +1,8 @@
 import { Execution, Game, Player, Tick, Unit, UnitType } from "../game/Game";
 import { TileRef } from "../game/GameMap";
+import { BarracksExecution } from "./BarracksExecution";
 import { CityExecution } from "./CityExecution";
+import { DefenseDepartmentExecution } from "./DefenseDepartmentExecution";
 import { DefensePostExecution } from "./DefensePostExecution";
 import { ExtractorExecution } from "./ExtractorExecution";
 import { FactoryExecution } from "./FactoryExecution";
@@ -148,6 +150,12 @@ export class ConstructionExecution implements Execution {
       case UnitType.Extractor:
         this.mg.addExecution(new ExtractorExecution(this.structure!));
         break;
+      case UnitType.Barracks:
+        this.mg.addExecution(new BarracksExecution(this.structure!));
+        break;
+      case UnitType.DefenseDepartment:
+        this.mg.addExecution(new DefenseDepartmentExecution(this.structure!));
+        break;
       default:
         console.warn(
           `unit type ${this.constructionType} cannot be constructed`,
@@ -165,6 +173,8 @@ export class ConstructionExecution implements Execution {
       case UnitType.City:
       case UnitType.Factory:
       case UnitType.Extractor:
+      case UnitType.Barracks:
+      case UnitType.DefenseDepartment:
         return true;
       default:
         return false;

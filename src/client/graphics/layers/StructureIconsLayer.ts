@@ -63,6 +63,34 @@ class StructureRenderInfo {
   ) {}
 }
 
+function grainUsedByBarracksLevels(
+  barracksLevels: number,
+  availableGrain: number,
+): number {
+  let used = 0;
+  let poweredLevels = 0;
+  let requiredForNextLevel = 1;
+
+  while (
+    poweredLevels < barracksLevels &&
+    availableGrain >= requiredForNextLevel
+  ) {
+    availableGrain -= requiredForNextLevel;
+    used += requiredForNextLevel;
+    poweredLevels++;
+    requiredForNextLevel *= 2;
+  }
+
+  return used;
+}
+
+function grainNeededForBarracksLevel(level: number): number {
+  if (level <= 0) {
+    return 0;
+  }
+  return 2 ** level - 1;
+}
+
 export class StructureIconsLayer implements Layer {
   private ghostUnit: {
     container: PIXI.Container;
@@ -95,17 +123,24 @@ export class StructureIconsLayer implements Layer {
   private hoveredStationId: number | null = null;
   private hoveredStatsTick = -1;
   private hoveredStationStats: {
+    anchorType: UnitType;
     oreTotal: number;
     grainTotal: number;
     stoneTotal: number;
     oreUsed: number;
     grainUsed: number;
     stoneUsed: number;
+    barracksGrainNeeded: number | null;
+    barracksGrainConnected: number | null;
+    defenseDepartmentStoneNeeded: number | null;
+    defenseDepartmentStoneConnected: number | null;
   } | null = null;
   private readonly structures: Map<UnitType, { visible: boolean }> = new Map([
     [UnitType.City, { visible: true }],
     [UnitType.Factory, { visible: true }],
     [UnitType.Extractor, { visible: true }],
+    [UnitType.Barracks, { visible: true }],
+    [UnitType.DefenseDepartment, { visible: true }],
     [UnitType.DefensePost, { visible: true }],
     [UnitType.Port, { visible: true }],
     [UnitType.MissileSilo, { visible: true }],
@@ -253,7 +288,12 @@ export class StructureIconsLayer implements Layer {
       Math.round(14 / this.transformHandler.scale),
     );
     const nearby = this.game
-      .nearbyUnits(tile, searchRange, [UnitType.Factory, UnitType.Extractor])
+      .nearbyUnits(tile, searchRange, [
+        UnitType.Factory,
+        UnitType.Extractor,
+        UnitType.Barracks,
+        UnitType.DefenseDepartment,
+      ])
       .filter(({ unit }) => unit.isActive())
       .sort((a, b) => a.distSquared - b.distSquared);
 
@@ -283,11 +323,26 @@ export class StructureIconsLayer implements Layer {
     const grainFree = Math.max(0, stats.grainTotal - stats.grainUsed);
     const stoneFree = Math.max(0, stats.stoneTotal - stats.stoneUsed);
 
+    const barracksLine =
+      stats.anchorType === UnitType.Barracks &&
+      stats.barracksGrainNeeded !== null &&
+      stats.barracksGrainConnected !== null
+        ? `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#fbbf24">Barracks Grain</span><span>connected ${stats.barracksGrainConnected} • needed ${stats.barracksGrainNeeded}</span></div>`
+        : "";
+    const defenseDepartmentLine =
+      stats.anchorType === UnitType.DefenseDepartment &&
+      stats.defenseDepartmentStoneNeeded !== null &&
+      stats.defenseDepartmentStoneConnected !== null
+        ? `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#d1d5db">Defence Dept Stone</span><span>connected ${stats.defenseDepartmentStoneConnected} • needed ${stats.defenseDepartmentStoneNeeded}</span></div>`
+        : "";
+
     this.hoverTooltip.innerHTML =
       `<div style="font-weight:700;margin-bottom:4px">Network Resources</div>` +
       `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#c4b5fd">Ore</span><span>used ${stats.oreUsed} • free ${oreFree}</span></div>` +
       `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#fde68a">Grain</span><span>used ${stats.grainUsed} • free ${grainFree}</span></div>` +
-      `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#d1d5db">Stone</span><span>used ${stats.stoneUsed} • free ${stoneFree}</span></div>`;
+      `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#d1d5db">Stone</span><span>used ${stats.stoneUsed} • free ${stoneFree}</span></div>` +
+      barracksLine +
+      defenseDepartmentLine;
     this.hoverTooltip.style.left = `${screenX + 12}px`;
     this.hoverTooltip.style.top = `${screenY + 12}px`;
     this.hoverTooltip.style.display = "block";
@@ -296,7 +351,14 @@ export class StructureIconsLayer implements Layer {
   private computeNetworkResourceStats(anchor: UnitView) {
     const ownerId = anchor.owner().id();
     const stations = this.game
-      .units(UnitType.City, UnitType.Factory, UnitType.Port, UnitType.Extractor)
+      .units(
+        UnitType.City,
+        UnitType.Factory,
+        UnitType.Port,
+        UnitType.Extractor,
+        UnitType.Barracks,
+        UnitType.DefenseDepartment,
+      )
       .filter((unit) => unit.isActive());
     const stationById = new Map<number, UnitView>();
     for (const station of stations) {
@@ -316,6 +378,8 @@ export class StructureIconsLayer implements Layer {
           UnitType.Factory,
           UnitType.Port,
           UnitType.Extractor,
+          UnitType.Barracks,
+          UnitType.DefenseDepartment,
         ])
         .filter(
           ({ unit, distSquared }) =>
@@ -351,6 +415,24 @@ export class StructureIconsLayer implements Layer {
       (sum, station) => sum + station.level(),
       0,
     );
+    const ownerBarracks = componentStations.filter(
+      (station) =>
+        station.type() === UnitType.Barracks &&
+        station.owner().id() === ownerId,
+    );
+    const barracksLevels = ownerBarracks.reduce(
+      (sum, station) => sum + station.level(),
+      0,
+    );
+    const ownerDefenseDepartments = componentStations.filter(
+      (station) =>
+        station.type() === UnitType.DefenseDepartment &&
+        station.owner().id() === ownerId,
+    );
+    const defenseDepartmentLevels = ownerDefenseDepartments.reduce(
+      (sum, station) => sum + station.level(),
+      0,
+    );
 
     const seedKey = resourceSeedKeyFromGameConfig(
       this.game.config().gameConfig(),
@@ -382,13 +464,47 @@ export class StructureIconsLayer implements Layer {
       }
     }
 
+    const grainUsedByFactories = Math.min(grainTotal, factoryLevels);
+    const grainLeftForBarracks = Math.max(0, grainTotal - grainUsedByFactories);
+    const grainUsedByBarracks = grainUsedByBarracksLevels(
+      barracksLevels,
+      grainLeftForBarracks,
+    );
+    const stoneUsedByFactories = Math.min(stoneTotal, factoryLevels);
+    const stoneLeftForDefenseDepartment = Math.max(
+      0,
+      stoneTotal - stoneUsedByFactories,
+    );
+    const stoneUsedByDefenseDepartment = grainUsedByBarracksLevels(
+      defenseDepartmentLevels,
+      stoneLeftForDefenseDepartment,
+    );
+
+    const barracksGrainNeeded =
+      anchor.type() === UnitType.Barracks
+        ? grainNeededForBarracksLevel(anchor.level())
+        : null;
+    const barracksGrainConnected =
+      anchor.type() === UnitType.Barracks ? grainTotal : null;
+    const defenseDepartmentStoneNeeded =
+      anchor.type() === UnitType.DefenseDepartment
+        ? grainNeededForBarracksLevel(anchor.level())
+        : null;
+    const defenseDepartmentStoneConnected =
+      anchor.type() === UnitType.DefenseDepartment ? stoneTotal : null;
+
     return {
+      anchorType: anchor.type(),
       oreTotal,
       grainTotal,
       stoneTotal,
       oreUsed: Math.min(oreTotal, factoryLevels),
-      grainUsed: Math.min(grainTotal, factoryLevels),
-      stoneUsed: Math.min(stoneTotal, factoryLevels),
+      grainUsed: grainUsedByFactories + grainUsedByBarracks,
+      stoneUsed: stoneUsedByFactories + stoneUsedByDefenseDepartment,
+      barracksGrainNeeded,
+      barracksGrainConnected,
+      defenseDepartmentStoneNeeded,
+      defenseDepartmentStoneConnected,
     };
   }
 
@@ -1054,7 +1170,14 @@ export class StructureIconsLayer implements Layer {
     this.factoryDotsComputedAtTick = tick;
 
     const stations = this.game
-      .units(UnitType.City, UnitType.Factory, UnitType.Port, UnitType.Extractor)
+      .units(
+        UnitType.City,
+        UnitType.Factory,
+        UnitType.Port,
+        UnitType.Extractor,
+        UnitType.Barracks,
+        UnitType.DefenseDepartment,
+      )
       .filter((unit) => unit.isActive());
 
     const stationById = new Map<number, UnitView>();
@@ -1073,6 +1196,8 @@ export class StructureIconsLayer implements Layer {
           UnitType.Factory,
           UnitType.Port,
           UnitType.Extractor,
+          UnitType.Barracks,
+          UnitType.DefenseDepartment,
         ])
         .filter(
           ({ unit, distSquared }) =>

@@ -4,6 +4,7 @@ import { EventBus } from "../../../core/EventBus";
 import { GameView, PlayerView } from "../../../core/game/GameView";
 import { within } from "../../../core/Util";
 import {
+  SendBuyTroopsRequestIntentEvent,
   SendDonateGoldIntentEvent,
   SendDonateTroopsIntentEvent,
 } from "../../Transport";
@@ -15,7 +16,7 @@ export class SendResourceModal extends LitElement {
   @property({ attribute: false }) eventBus: EventBus | null = null;
 
   @property({ type: Boolean }) open: boolean = false;
-  @property({ type: String }) mode: "troops" | "gold" = "troops";
+  @property({ type: String }) mode: "troops" | "gold" | "buy_troops" = "troops";
 
   @property({ type: Object }) total: number | bigint = 0;
   @property({ type: Object }) uiState: UIState | null = null; // to seed initial %
@@ -98,6 +99,12 @@ export class SendResourceModal extends LitElement {
       const myTroops = Number(myPlayer.troops());
       if (amount > myTroops) return;
       this.eventBus.emit(new SendDonateTroopsIntentEvent(target, amount));
+    } else if (this.mode === "buy_troops") {
+      const myGold = Number(myPlayer.gold());
+      if (amount > myGold) return;
+      this.eventBus.emit(
+        new SendBuyTroopsRequestIntentEvent(target, BigInt(amount)),
+      );
     } else {
       const myGold = Number(myPlayer.gold());
       if (amount > myGold) return;
@@ -197,7 +204,9 @@ export class SendResourceModal extends LitElement {
     title: (name: string) =>
       this.mode === "troops"
         ? translateText("send_troops_modal.title_with_name", { name })
-        : translateText("send_gold_modal.title_with_name", { name }),
+        : this.mode === "buy_troops"
+          ? `Buy Troops from ${name}`
+          : translateText("send_gold_modal.title_with_name", { name }),
 
     availableChip: () => translateText("common.available"),
 
@@ -211,7 +220,9 @@ export class SendResourceModal extends LitElement {
     ariaSlider: () =>
       this.mode === "troops"
         ? translateText("send_troops_modal.aria_slider")
-        : translateText("send_gold_modal.aria_slider"),
+        : this.mode === "buy_troops"
+          ? translateText("send_gold_modal.aria_slider")
+          : translateText("send_gold_modal.aria_slider"),
 
     summarySend: () => translateText("common.summary_send"),
     summaryKeep: () => translateText("common.summary_keep"),
@@ -219,6 +230,7 @@ export class SendResourceModal extends LitElement {
     closeLabel: () => translateText("common.close"),
     cancel: () => translateText("common.cancel"),
     send: () => translateText("common.send"),
+    request: () => "Request",
 
     cap: () => translateText("common.cap_label"),
     capTooltip: () => translateText("common.cap_tooltip"),
@@ -229,10 +241,12 @@ export class SendResourceModal extends LitElement {
             percent,
             amount: amountStr,
           })
-        : translateText("send_gold_modal.slider_tooltip", {
-            percent,
-            amount: amountStr,
-          }),
+        : this.mode === "buy_troops"
+          ? `${percent}% • ${amountStr}`
+          : translateText("send_gold_modal.slider_tooltip", {
+              percent,
+              amount: amountStr,
+            }),
 
     capacityNote: (amountStr: string) =>
       translateText("send_troops_modal.capacity_note", { amount: amountStr }),
@@ -465,7 +479,7 @@ export class SendResourceModal extends LitElement {
           ?disabled=${disabled}
           @click=${() => this.confirm()}
         >
-          ${this.i18n.send()}
+          ${this.mode === "buy_troops" ? this.i18n.request() : this.i18n.send()}
         </button>
       </div>
     `;

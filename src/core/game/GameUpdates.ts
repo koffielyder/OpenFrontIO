@@ -43,6 +43,8 @@ export enum GameUpdateType {
   DisplayChatEvent,
   AllianceRequest,
   AllianceRequestReply,
+  TroopPurchaseRequest,
+  TroopPurchaseRequestReply,
   BrokeAlliance,
   AllianceExpired,
   AllianceExtension,
@@ -65,6 +67,8 @@ export type GameUpdate =
   | PlayerUpdate
   | AllianceRequestUpdate
   | AllianceRequestReplyUpdate
+  | TroopPurchaseRequestUpdate
+  | TroopPurchaseRequestReplyUpdate
   | BrokeAllianceUpdate
   | AllianceExpiredUpdate
   | DisplayMessageUpdate
@@ -202,6 +206,22 @@ export interface AllianceRequestReplyUpdate {
   type: GameUpdateType.AllianceRequestReply;
   request: AllianceRequestUpdate;
   accepted: boolean;
+}
+
+export interface TroopPurchaseRequestUpdate {
+  type: GameUpdateType.TroopPurchaseRequest;
+  requestorID: number;
+  recipientID: number;
+  gold: Gold;
+  createdAt: Tick;
+}
+
+export interface TroopPurchaseRequestReplyUpdate {
+  type: GameUpdateType.TroopPurchaseRequestReply;
+  request: TroopPurchaseRequestUpdate;
+  accepted: boolean;
+  troopsSent: number;
+  goldPaid: Gold;
 }
 
 export interface BrokeAllianceUpdate {

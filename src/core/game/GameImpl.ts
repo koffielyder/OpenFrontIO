@@ -37,6 +37,7 @@ import {
   TerrainType,
   TerraNullius,
   Trios,
+  TroopPurchaseRequest,
   Unit,
   UnitInfo,
   UnitType,
@@ -50,6 +51,7 @@ import { Stats } from "./Stats";
 import { StatsImpl } from "./StatsImpl";
 import { assignTeams } from "./TeamAssignment";
 import { TerraNulliusImpl } from "./TerraNulliusImpl";
+import { TroopPurchaseRequestImpl } from "./TroopPurchaseRequestImpl";
 import { UnitGrid, UnitPredicate } from "./UnitGrid";
 
 export function createGame(
@@ -88,6 +90,7 @@ export class GameImpl implements Game {
   _terraNullius: TerraNulliusImpl;
 
   allianceRequests: AllianceRequestImpl[] = [];
+  troopPurchaseRequests: TroopPurchaseRequestImpl[] = [];
   alliances_: AllianceImpl[] = [];
 
   private nextPlayerID = 1;
@@ -362,6 +365,96 @@ export class GameImpl implements Game {
       type: GameUpdateType.AllianceRequestReply,
       request: request.toUpdate(),
       accepted: false,
+    });
+  }
+
+  createTroopPurchaseRequest(
+    requestor: Player,
+    recipient: Player,
+    gold: bigint,
+  ): TroopPurchaseRequest | null {
+    if (requestor === recipient) {
+      return null;
+    }
+    if (!requestor.canRequestTroopsFrom(recipient)) {
+      return null;
+    }
+    const roundedGold = (gold / 10n) * 10n;
+    if (roundedGold <= 0n) {
+      return null;
+    }
+    const duplicate = this.troopPurchaseRequests.find(
+      (r) => r.requestor() === requestor && r.recipient() === recipient,
+    );
+    if (duplicate) {
+      return null;
+    }
+
+    const req = new TroopPurchaseRequestImpl(
+      requestor,
+      recipient,
+      roundedGold,
+      this._ticks,
+      this,
+    );
+    this.troopPurchaseRequests.push(req);
+    this.addUpdate(req.toUpdate());
+    return req;
+  }
+
+  acceptTroopPurchaseRequest(request: TroopPurchaseRequestImpl) {
+    this.troopPurchaseRequests = this.troopPurchaseRequests.filter(
+      (r) => r !== request,
+    );
+
+    const buyer = request.requestor();
+    const seller = request.recipient();
+
+    const requestedTroops = request.gold() / 10n;
+    const maxBySeller = BigInt(Math.max(0, seller.troops()));
+    const maxByBuyerGold = buyer.gold() / 10n;
+    const maxByBuyerCapacity = BigInt(
+      Math.max(0, this.config().maxTroops(buyer) - buyer.troops()),
+    );
+
+    const troopsToSend = [
+      requestedTroops,
+      maxBySeller,
+      maxByBuyerGold,
+      maxByBuyerCapacity,
+    ].reduce((a, b) => (a < b ? a : b));
+
+    let troopsSent = 0;
+    let goldPaid = 0n;
+
+    if (troopsToSend > 0n && seller.canDonateTroops(buyer)) {
+      troopsSent = Number(troopsToSend);
+      goldPaid = troopsToSend * 10n;
+      seller.removeTroops(troopsSent);
+      buyer.addTroops(troopsSent);
+      buyer.removeGold(goldPaid);
+      seller.addGold(goldPaid);
+    }
+
+    this.addUpdate({
+      type: GameUpdateType.TroopPurchaseRequestReply,
+      request: request.toUpdate(),
+      accepted: true,
+      troopsSent,
+      goldPaid,
+    });
+  }
+
+  rejectTroopPurchaseRequest(request: TroopPurchaseRequestImpl) {
+    this.troopPurchaseRequests = this.troopPurchaseRequests.filter(
+      (r) => r !== request,
+    );
+    this.addUpdate({
+      type: GameUpdateType.TroopPurchaseRequestReply,
+      request: request.toUpdate(),
+      accepted: false,
+      troopsSent: 0,
+      goldPaid: 0n,
     });
   }
 

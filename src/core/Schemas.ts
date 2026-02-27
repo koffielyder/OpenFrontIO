@@ -41,6 +41,8 @@ export type Intent =
   | EmojiIntent
   | DonateGoldIntent
   | DonateTroopsIntent
+  | BuyTroopsRequestIntent
+  | BuyTroopsReplyIntent
   | BuildUnitIntent
   | EmbargoIntent
   | QuickChatIntent
@@ -66,6 +68,10 @@ export type TargetPlayerIntent = z.infer<typeof TargetPlayerIntentSchema>;
 export type EmojiIntent = z.infer<typeof EmojiIntentSchema>;
 export type DonateGoldIntent = z.infer<typeof DonateGoldIntentSchema>;
 export type DonateTroopsIntent = z.infer<typeof DonateTroopIntentSchema>;
+export type BuyTroopsRequestIntent = z.infer<
+  typeof BuyTroopsRequestIntentSchema
+>;
+export type BuyTroopsReplyIntent = z.infer<typeof BuyTroopsReplyIntentSchema>;
 export type EmbargoIntent = z.infer<typeof EmbargoIntentSchema>;
 export type BuildUnitIntent = z.infer<typeof BuildUnitIntentSchema>;
 export type UpgradeStructureIntent = z.infer<
@@ -358,6 +364,18 @@ export const DonateTroopIntentSchema = z.object({
   troops: z.number().nonnegative().nullable(),
 });
 
+export const BuyTroopsRequestIntentSchema = z.object({
+  type: z.literal("buy_troops_request"),
+  recipient: ID,
+  gold: z.number().int().positive(),
+});
+
+export const BuyTroopsReplyIntentSchema = z.object({
+  type: z.literal("buy_troops_reply"),
+  requestor: ID,
+  accept: z.boolean(),
+});
+
 export const BuildUnitIntentSchema = z.object({
   type: z.literal("build_unit"),
   unit: z.enum(UnitType),
@@ -434,6 +452,8 @@ const IntentSchema = z.discriminatedUnion("type", [
   EmojiIntentSchema,
   DonateGoldIntentSchema,
   DonateTroopIntentSchema,
+  BuyTroopsRequestIntentSchema,
+  BuyTroopsReplyIntentSchema,
   BuildUnitIntentSchema,
   UpgradeStructureIntentSchema,
   EmbargoIntentSchema,

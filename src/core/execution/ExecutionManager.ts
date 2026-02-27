@@ -9,6 +9,8 @@ import { BreakAllianceExecution } from "./alliance/BreakAllianceExecution";
 import { AttackExecution } from "./AttackExecution";
 import { BoatRetreatExecution } from "./BoatRetreatExecution";
 import { BotSpawner } from "./BotSpawner";
+import { BuyTroopsReplyExecution } from "./BuyTroopsReplyExecution";
+import { BuyTroopsRequestExecution } from "./BuyTroopsRequestExecution";
 import { ConstructionExecution } from "./ConstructionExecution";
 import { DeleteUnitExecution } from "./DeleteUnitExecution";
 import { DonateGoldExecution } from "./DonateGoldExecution";
@@ -91,6 +93,18 @@ export class Executor {
         );
       case "donate_gold":
         return new DonateGoldExecution(player, intent.recipient, intent.gold);
+      case "buy_troops_request":
+        return new BuyTroopsRequestExecution(
+          player,
+          intent.recipient,
+          BigInt(intent.gold),
+        );
+      case "buy_troops_reply":
+        return new BuyTroopsReplyExecution(
+          player,
+          intent.requestor,
+          intent.accept,
+        );
       case "embargo":
         return new EmbargoExecution(player, intent.targetID, intent.action);
       case "embargo_all":

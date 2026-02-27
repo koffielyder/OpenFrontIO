@@ -21,12 +21,15 @@ import {
   EmojiUpdate,
   GameUpdateType,
   TargetPlayerUpdate,
+  TroopPurchaseRequestReplyUpdate,
+  TroopPurchaseRequestUpdate,
   UnitIncomingUpdate,
 } from "../../../core/game/GameUpdates";
 import {
   SendAllianceExtensionIntentEvent,
   SendAllianceRejectIntentEvent,
   SendAllianceRequestIntentEvent,
+  SendBuyTroopsReplyIntentEvent,
 } from "../../Transport";
 import { Layer } from "./Layer";
 
@@ -171,6 +174,14 @@ export class EventsDisplay extends LitElement implements Layer {
     [
       GameUpdateType.AllianceRequestReply,
       this.onAllianceRequestReplyEvent.bind(this),
+    ],
+    [
+      GameUpdateType.TroopPurchaseRequest,
+      this.onTroopPurchaseRequestEvent.bind(this),
+    ],
+    [
+      GameUpdateType.TroopPurchaseRequestReply,
+      this.onTroopPurchaseRequestReplyEvent.bind(this),
     ],
     [GameUpdateType.BrokeAlliance, this.onBrokeAllianceEvent.bind(this)],
     [GameUpdateType.TargetPlayer, this.onTargetPlayerEvent.bind(this)],
@@ -533,6 +544,93 @@ export class EventsDisplay extends LitElement implements Layer {
       type: update.accepted
         ? MessageType.ALLIANCE_ACCEPTED
         : MessageType.ALLIANCE_REJECTED,
+      highlight: true,
+      createdAt: this.game.ticks(),
+      focusID: update.request.recipientID,
+    });
+  }
+
+  onTroopPurchaseRequestEvent(update: TroopPurchaseRequestUpdate) {
+    const myPlayer = this.game.myPlayer();
+    if (!myPlayer || update.recipientID !== myPlayer.smallID()) {
+      return;
+    }
+
+    const requestor = this.game.playerBySmallID(
+      update.requestorID,
+    ) as PlayerView;
+    const requestedTroops = Number(update.gold / 10n);
+
+    this.addEvent({
+      description: `${requestor.name()} requests to buy ${renderNumber(requestedTroops)} troops for ${renderNumber(update.gold)} gold`,
+      buttons: [
+        {
+          text: translateText("events_display.focus"),
+          className: "btn-gray",
+          action: () => this.eventBus.emit(new GoToPlayerEvent(requestor)),
+          preventClose: true,
+        },
+        {
+          text: translateText("events_display.accept_alliance"),
+          className: "btn",
+          action: () =>
+            this.eventBus.emit(
+              new SendBuyTroopsReplyIntentEvent(requestor, true),
+            ),
+        },
+        {
+          text: translateText("events_display.reject_alliance"),
+          className: "btn-info",
+          action: () =>
+            this.eventBus.emit(
+              new SendBuyTroopsReplyIntentEvent(requestor, false),
+            ),
+        },
+      ],
+      highlight: true,
+      type: MessageType.TROOP_BUY_REQUEST,
+      createdAt: this.game.ticks(),
+      priority: 0,
+      duration: this.game.config().allianceRequestDuration() - 20,
+      focusID: update.requestorID,
+    });
+  }
+
+  onTroopPurchaseRequestReplyEvent(update: TroopPurchaseRequestReplyUpdate) {
+    const myPlayer = this.game.myPlayer();
+    if (!myPlayer) {
+      return;
+    }
+
+    if (update.request.recipientID === myPlayer.smallID()) {
+      this.events = this.events.filter(
+        (event) =>
+          !(
+            event.type === MessageType.TROOP_BUY_REQUEST &&
+            event.focusID === update.request.requestorID
+          ),
+      );
+      this.requestUpdate();
+      return;
+    }
+
+    if (update.request.requestorID !== myPlayer.smallID()) {
+      return;
+    }
+
+    const recipient = this.game.playerBySmallID(
+      update.request.recipientID,
+    ) as PlayerView;
+
+    this.addEvent({
+      description: update.accepted
+        ? update.troopsSent > 0
+          ? `${recipient.name()} accepted your troop purchase. Received ${renderNumber(update.troopsSent)} troops for ${renderNumber(update.goldPaid)} gold.`
+          : `${recipient.name()} accepted your troop purchase, but sent no troops.`
+        : `${recipient.name()} rejected your troop purchase request.`,
+      type: update.accepted
+        ? MessageType.TROOP_BUY_ACCEPTED
+        : MessageType.TROOP_BUY_REJECTED,
       highlight: true,
       createdAt: this.game.ticks(),
       focusID: update.request.recipientID,

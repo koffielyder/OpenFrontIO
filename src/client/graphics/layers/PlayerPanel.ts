@@ -64,7 +64,7 @@ export class PlayerPanel extends LitElement implements Layer {
   private kickedPlayerIDs = new Set<string>();
 
   @state() private sendTarget: PlayerView | null = null;
-  @state() private sendMode: "troops" | "gold" | "none" = "none";
+  @state() private sendMode: "troops" | "gold" | "buy_troops" | "none" = "none";
   @state() public isVisible: boolean = false;
   @state() private allianceExpiryText: string | null = null;
   @state() private allianceExpirySeconds: number | null = null;
@@ -211,6 +211,12 @@ export class PlayerPanel extends LitElement implements Layer {
     this.sendMode = "gold";
   }
 
+  private openBuyTroops(target: PlayerView) {
+    this.suppressNextHide = true;
+    this.sendTarget = target;
+    this.sendMode = "buy_troops";
+  }
+
   private handleDonateTroopClick(
     e: Event,
     myPlayer: PlayerView,
@@ -227,6 +233,15 @@ export class PlayerPanel extends LitElement implements Layer {
   ) {
     e.stopPropagation();
     this.openSendGold(other);
+  }
+
+  private handleBuyTroopsClick(
+    e: Event,
+    myPlayer: PlayerView,
+    other: PlayerView,
+  ) {
+    e.stopPropagation();
+    this.openBuyTroops(other);
   }
 
   private closeSend = () => {
@@ -706,6 +721,7 @@ export class PlayerPanel extends LitElement implements Layer {
     const myPlayer = this.g.myPlayer();
     const canDonateGold = this.actions?.interaction?.canDonateGold;
     const canDonateTroops = this.actions?.interaction?.canDonateTroops;
+    const canRequestTroops = this.actions?.interaction?.canRequestTroops;
     const canSendAllianceRequest =
       this.actions?.interaction?.canSendAllianceRequest;
     const canSendEmoji =
@@ -754,6 +770,17 @@ export class PlayerPanel extends LitElement implements Layer {
                 iconAlt: "Troops",
                 title: translateText("player_panel.send_troops"),
                 label: translateText("player_panel.troops"),
+                type: "normal",
+              })
+            : ""}
+          ${canRequestTroops
+            ? actionButton({
+                onClick: (e: MouseEvent) =>
+                  this.handleBuyTroopsClick(e, my, other),
+                icon: donateTroopIcon,
+                iconAlt: "Buy Troops",
+                title: "Buy Troops",
+                label: "Buy Troops",
                 type: "normal",
               })
             : ""}

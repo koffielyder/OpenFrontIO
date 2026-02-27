@@ -114,6 +114,20 @@ export class SendDonateTroopsIntentEvent implements GameEvent {
   ) {}
 }
 
+export class SendBuyTroopsRequestIntentEvent implements GameEvent {
+  constructor(
+    public readonly recipient: PlayerView,
+    public readonly gold: Gold,
+  ) {}
+}
+
+export class SendBuyTroopsReplyIntentEvent implements GameEvent {
+  constructor(
+    public readonly requestor: PlayerView,
+    public readonly accept: boolean,
+  ) {}
+}
+
 export class SendQuickChatEvent implements GameEvent {
   constructor(
     public readonly recipient: PlayerView,
@@ -227,6 +241,12 @@ export class Transport {
     );
     this.eventBus.on(SendDonateTroopsIntentEvent, (e) =>
       this.onSendDonateTroopIntent(e),
+    );
+    this.eventBus.on(SendBuyTroopsRequestIntentEvent, (e) =>
+      this.onSendBuyTroopsRequestIntent(e),
+    );
+    this.eventBus.on(SendBuyTroopsReplyIntentEvent, (e) =>
+      this.onSendBuyTroopsReplyIntent(e),
     );
     this.eventBus.on(SendQuickChatEvent, (e) => this.onSendQuickChatIntent(e));
     this.eventBus.on(SendEmbargoIntentEvent, (e) =>
@@ -525,6 +545,22 @@ export class Transport {
       type: "donate_troops",
       recipient: event.recipient.id(),
       troops: event.troops,
+    });
+  }
+
+  private onSendBuyTroopsRequestIntent(event: SendBuyTroopsRequestIntentEvent) {
+    this.sendIntent({
+      type: "buy_troops_request",
+      recipient: event.recipient.id(),
+      gold: Number(event.gold),
+    });
+  }
+
+  private onSendBuyTroopsReplyIntent(event: SendBuyTroopsReplyIntentEvent) {
+    this.sendIntent({
+      type: "buy_troops_reply",
+      requestor: event.requestor.id(),
+      accept: event.accept,
     });
   }
 

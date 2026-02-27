@@ -36,6 +36,7 @@ import {
   Team,
   TerraNullius,
   Tick,
+  TroopPurchaseRequest,
   Unit,
   UnitParams,
   UnitType,
@@ -419,6 +420,14 @@ export class PlayerImpl implements Player {
     return this.mg.allianceRequests.filter((ar) => ar.requestor() === this);
   }
 
+  incomingTroopPurchaseRequests(): TroopPurchaseRequest[] {
+    return this.mg.troopPurchaseRequests.filter((r) => r.recipient() === this);
+  }
+
+  outgoingTroopPurchaseRequests(): TroopPurchaseRequest[] {
+    return this.mg.troopPurchaseRequests.filter((r) => r.requestor() === this);
+  }
+
   alliances(): MutableAlliance[] {
     return this.mg.alliances_.filter(
       (a) => a.requestor() === this || a.recipient() === this,
@@ -556,6 +565,34 @@ export class PlayerImpl implements Player {
       throw new Error(`cannot create alliance request, already allies`);
     }
     return this.mg.createAllianceRequest(this, recipient satisfies Player);
+  }
+
+  canRequestTroopsFrom(other: Player): boolean {
+    if (other === this) {
+      return false;
+    }
+    if (!this.isAlive() || !other.isAlive()) {
+      return false;
+    }
+    if (!this.isFriendly(other)) {
+      return false;
+    }
+    if (!other.canDonateTroops(this)) {
+      return false;
+    }
+    if (this.gold() < 10n) {
+      return false;
+    }
+    return !this.outgoingTroopPurchaseRequests().some(
+      (r) => r.recipient() === other,
+    );
+  }
+
+  createTroopPurchaseRequest(
+    recipient: Player,
+    gold: bigint,
+  ): TroopPurchaseRequest | null {
+    return this.mg.createTroopPurchaseRequest(this, recipient, gold);
   }
 
   relation(other: Player): Relation {

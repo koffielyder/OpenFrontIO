@@ -447,6 +447,16 @@ export interface AllianceRequest {
   status(): "pending" | "accepted" | "rejected";
 }
 
+export interface TroopPurchaseRequest {
+  accept(): void;
+  reject(): void;
+  requestor(): Player;
+  recipient(): Player;
+  gold(): Gold;
+  createdAt(): Tick;
+  status(): "pending" | "accepted" | "rejected";
+}
+
 export interface Alliance {
   requestor(): Player;
   recipient(): Player;
@@ -667,6 +677,8 @@ export interface Player {
   clan(): string | null;
   incomingAllianceRequests(): AllianceRequest[];
   outgoingAllianceRequests(): AllianceRequest[];
+  incomingTroopPurchaseRequests(): TroopPurchaseRequest[];
+  outgoingTroopPurchaseRequests(): TroopPurchaseRequest[];
   alliances(): MutableAlliance[];
   expiredAlliances(): Alliance[];
   allies(): Player[];
@@ -677,6 +689,11 @@ export interface Player {
   breakAlliance(alliance: Alliance): void;
   removeAllAlliances(): void;
   createAllianceRequest(recipient: Player): AllianceRequest | null;
+  canRequestTroopsFrom(other: Player): boolean;
+  createTroopPurchaseRequest(
+    recipient: Player,
+    gold: Gold,
+  ): TroopPurchaseRequest | null;
   betrayals(): number;
 
   // Targeting
@@ -892,6 +909,7 @@ export interface PlayerInteraction {
   canTarget: boolean;
   canDonateGold: boolean;
   canDonateTroops: boolean;
+  canRequestTroops: boolean;
   canEmbargo: boolean;
   allianceInfo?: AllianceInfo;
 }
@@ -927,6 +945,9 @@ export enum MessageType {
   RECEIVED_GOLD_FROM_TRADE,
   SENT_TROOPS_TO_PLAYER,
   RECEIVED_TROOPS_FROM_PLAYER,
+  TROOP_BUY_REQUEST,
+  TROOP_BUY_ACCEPTED,
+  TROOP_BUY_REJECTED,
   CHAT,
   RENEW_ALLIANCE,
 }
@@ -966,6 +987,9 @@ export const MESSAGE_TYPE_CATEGORIES: Record<MessageType, MessageCategory> = {
   [MessageType.RECEIVED_GOLD_FROM_TRADE]: MessageCategory.TRADE,
   [MessageType.SENT_TROOPS_TO_PLAYER]: MessageCategory.TRADE,
   [MessageType.RECEIVED_TROOPS_FROM_PLAYER]: MessageCategory.TRADE,
+  [MessageType.TROOP_BUY_REQUEST]: MessageCategory.TRADE,
+  [MessageType.TROOP_BUY_ACCEPTED]: MessageCategory.TRADE,
+  [MessageType.TROOP_BUY_REJECTED]: MessageCategory.TRADE,
   [MessageType.CHAT]: MessageCategory.CHAT,
 } as const;
 

@@ -405,6 +405,7 @@ export function getMessageTypeClasses(type: MessageType): string {
       return severityColors["success"];
     case MessageType.ATTACK_FAILED:
     case MessageType.ALLIANCE_REJECTED:
+    case MessageType.TROOP_BUY_REJECTED:
     case MessageType.ALLIANCE_BROKEN:
     case MessageType.UNIT_CAPTURED_BY_ENEMY:
     case MessageType.UNIT_DESTROYED:
@@ -416,6 +417,7 @@ export function getMessageTypeClasses(type: MessageType): string {
     case MessageType.SENT_TROOPS_TO_PLAYER:
     case MessageType.RECEIVED_GOLD_FROM_PLAYER:
     case MessageType.RECEIVED_TROOPS_FROM_PLAYER:
+    case MessageType.TROOP_BUY_ACCEPTED:
       return severityColors["blue"];
     case MessageType.MIRV_INBOUND:
     case MessageType.NUKE_INBOUND:
@@ -427,6 +429,7 @@ export function getMessageTypeClasses(type: MessageType): string {
       return severityColors["warn"];
     case MessageType.CHAT:
     case MessageType.ALLIANCE_REQUEST:
+    case MessageType.TROOP_BUY_REQUEST:
       return severityColors["info"];
     default:
       console.warn(`Message type ${type} has no explicit color`);

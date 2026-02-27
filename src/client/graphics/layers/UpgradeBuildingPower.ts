@@ -6,6 +6,30 @@ import {
   ResourceType,
 } from "../../../core/game/ResourceNodes";
 
+type UpgradePowerTickCache = {
+  tick: number;
+  stationComponents: UnitView[][] | null;
+  activeLevelsByKey: Map<string, number>;
+};
+
+const upgradePowerCache = new WeakMap<GameView, UpgradePowerTickCache>();
+
+function tickCache(game: GameView): UpgradePowerTickCache {
+  const currentTick = game.ticks();
+  const existing = upgradePowerCache.get(game);
+  if (existing !== undefined && existing.tick === currentTick) {
+    return existing;
+  }
+
+  const created: UpgradePowerTickCache = {
+    tick: currentTick,
+    stationComponents: null,
+    activeLevelsByKey: new Map<string, number>(),
+  };
+  upgradePowerCache.set(game, created);
+  return created;
+}
+
 function activeLevelsFromResource(
   levels: number,
   availableResource: number,
@@ -23,6 +47,11 @@ function activeLevelsFromResource(
 }
 
 function stationComponents(game: GameView): UnitView[][] {
+  const cache = tickCache(game);
+  if (cache.stationComponents !== null) {
+    return cache.stationComponents;
+  }
+
   const stations = game
     .units(
       UnitType.City,
@@ -94,6 +123,7 @@ function stationComponents(game: GameView): UnitView[][] {
     components.push(component);
   }
 
+  cache.stationComponents = components;
   return components;
 }
 
@@ -103,6 +133,13 @@ function activeUpgradeLevelsForPlayer(
   buildingType: UnitType,
   resourceType: ResourceType,
 ): number {
+  const cache = tickCache(game);
+  const key = `${playerId}|${buildingType}|${resourceType}`;
+  const cachedValue = cache.activeLevelsByKey.get(key);
+  if (cachedValue !== undefined) {
+    return cachedValue;
+  }
+
   const seedKey = resourceSeedKeyFromGameConfig(game.config().gameConfig());
   let totalActiveLevels = 0;
 
@@ -135,6 +172,7 @@ function activeUpgradeLevelsForPlayer(
     );
   }
 
+  cache.activeLevelsByKey.set(key, totalActiveLevels);
   return totalActiveLevels;
 }
 

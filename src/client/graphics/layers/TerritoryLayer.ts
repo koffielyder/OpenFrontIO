@@ -58,17 +58,30 @@ export class TerritoryLayer implements Layer {
   private lastRefresh = 0;
 
   private lastFocusedPlayer: PlayerView | null = null;
+  private defensePostRangeCache = new Map<
+    string,
+    { tick: number; range: number }
+  >();
 
   private effectiveDefensePostRange(owner: PlayerView): number {
+    const tick = this.game.ticks();
+    const ownerId = owner.id();
+    const cached = this.defensePostRangeCache.get(ownerId);
+    if (cached !== undefined && cached.tick === tick) {
+      return cached.range;
+    }
+
     const activeDefenseDepartments = activeDefenseDepartmentLevelsForPlayer(
       this.game,
-      owner.id(),
+      ownerId,
     );
-    return (
+    const range =
       this.game.config().defensePostRange() +
       activeDefenseDepartments *
-        this.game.config().defenseDepartmentRangeBonusPerLevel()
-    );
+        this.game.config().defenseDepartmentRangeBonusPerLevel();
+
+    this.defensePostRangeCache.set(ownerId, { tick, range });
+    return range;
   }
 
   private enqueueDefenseCoverageForPlayer(player: PlayerView) {
@@ -119,6 +132,7 @@ export class TerritoryLayer implements Layer {
     this.game.recentlyUpdatedTiles().forEach((t) => this.enqueueTile(t));
     const updates = this.game.updatesSinceLastTick();
     const unitUpdates = updates !== null ? updates[GameUpdateType.Unit] : [];
+    const playersNeedingDefenseRefresh = new Map<string, PlayerView>();
     unitUpdates.forEach((update) => {
       if (update.unitType === UnitType.DefensePost) {
         // Only update borders if the defense post is not under construction
@@ -166,7 +180,7 @@ export class TerritoryLayer implements Layer {
         ].filter((p): p is PlayerView => p instanceof PlayerView);
 
         for (const player of playersToRefresh) {
-          this.enqueueDefenseCoverageForPlayer(player);
+          playersNeedingDefenseRefresh.set(player.id(), player);
         }
       }
 
@@ -183,10 +197,14 @@ export class TerritoryLayer implements Layer {
         ].filter((p): p is PlayerView => p instanceof PlayerView);
 
         for (const player of playersToRefresh) {
-          this.enqueueDefenseCoverageForPlayer(player);
+          playersNeedingDefenseRefresh.set(player.id(), player);
         }
       }
     });
+
+    for (const player of playersNeedingDefenseRefresh.values()) {
+      this.enqueueDefenseCoverageForPlayer(player);
+    }
 
     // Detect alliance mutations
     const myPlayer = this.game.myPlayer();

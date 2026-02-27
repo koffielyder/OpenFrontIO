@@ -82,6 +82,27 @@ function stoneUsedByDefenseDepartmentLevels(
   return used;
 }
 
+function oreUsedByNuclearFacilityLevels(
+  nuclearFacilityLevels: number,
+  availableOre: number,
+): number {
+  let used = 0;
+  let poweredLevels = 0;
+  let requiredForNextLevel = 1;
+
+  while (
+    poweredLevels < nuclearFacilityLevels &&
+    availableOre >= requiredForNextLevel
+  ) {
+    availableOre -= requiredForNextLevel;
+    used += requiredForNextLevel;
+    poweredLevels++;
+    requiredForNextLevel *= 2;
+  }
+
+  return used;
+}
+
 @customElement("unit-display")
 export class UnitDisplay extends LitElement implements Layer {
   public game: GameView;
@@ -181,6 +202,7 @@ export class UnitDisplay extends LitElement implements Layer {
         UnitType.Extractor,
         UnitType.Barracks,
         UnitType.DefenseDepartment,
+        UnitType.NuclearFacility,
       )
       .filter((unit) => unit.isActive());
 
@@ -202,6 +224,7 @@ export class UnitDisplay extends LitElement implements Layer {
           UnitType.Extractor,
           UnitType.Barracks,
           UnitType.DefenseDepartment,
+          UnitType.NuclearFacility,
         ])
         .filter(
           ({ unit, distSquared }) =>
@@ -278,6 +301,15 @@ export class UnitDisplay extends LitElement implements Layer {
         (sum, station) => sum + station.level(),
         0,
       );
+      const myNuclearFacilities = componentStations.filter(
+        (station) =>
+          station.type() === UnitType.NuclearFacility &&
+          station.owner().id() === myPlayerId,
+      );
+      const nuclearFacilityLevels = myNuclearFacilities.reduce(
+        (sum, station) => sum + station.level(),
+        0,
+      );
 
       let oreCapacity = 0;
       let grainCapacity = 0;
@@ -313,25 +345,40 @@ export class UnitDisplay extends LitElement implements Layer {
       grain += grainCapacity;
       stone += stoneCapacity;
 
-      oreUsed += Math.min(oreCapacity, factoryLevels);
-      const grainUsedByFactories = Math.min(grainCapacity, factoryLevels);
-      const grainLeftForBarracks = Math.max(
-        0,
-        grainCapacity - grainUsedByFactories,
+      const oreUsedByNuclearFacility = oreUsedByNuclearFacilityLevels(
+        nuclearFacilityLevels,
+        oreCapacity,
       );
+      const oreLeftForFactories = Math.max(
+        0,
+        oreCapacity - oreUsedByNuclearFacility,
+      );
+      const oreUsedByFactories = Math.min(oreLeftForFactories, factoryLevels);
+      oreUsed += oreUsedByFactories + oreUsedByNuclearFacility;
       const grainUsedByBarracks = grainUsedByBarracksLevels(
         barracksLevels,
-        grainLeftForBarracks,
+        grainCapacity,
+      );
+      const grainLeftForFactories = Math.max(
+        0,
+        grainCapacity - grainUsedByBarracks,
+      );
+      const grainUsedByFactories = Math.min(
+        grainLeftForFactories,
+        factoryLevels,
       );
       grainUsed += grainUsedByFactories + grainUsedByBarracks;
-      const stoneUsedByFactories = Math.min(stoneCapacity, factoryLevels);
-      const stoneLeftForDefenseDepartment = Math.max(
-        0,
-        stoneCapacity - stoneUsedByFactories,
-      );
       const stoneUsedByDefenseDepartment = stoneUsedByDefenseDepartmentLevels(
         defenseDepartmentLevels,
-        stoneLeftForDefenseDepartment,
+        stoneCapacity,
+      );
+      const stoneLeftForFactories = Math.max(
+        0,
+        stoneCapacity - stoneUsedByDefenseDepartment,
+      );
+      const stoneUsedByFactories = Math.min(
+        stoneLeftForFactories,
+        factoryLevels,
       );
       stoneUsed += stoneUsedByFactories + stoneUsedByDefenseDepartment;
     }

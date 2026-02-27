@@ -137,8 +137,10 @@ export interface Config {
   trainStationMaxRange(): number;
   railroadMaxSize(): number;
   safeFromPiratesCooldownMax(): number;
+  barracksTroopMultiplierPerLevel(): number;
   defensePostRange(): number;
   defenseDepartmentRangeBonusPerLevel(): number;
+  nuclearFacilityNukeRangeBonusPerLevel(): number;
   SAMCooldown(): number;
   SiloCooldown(): number;
   minDistanceBetweenPlayers(): number;

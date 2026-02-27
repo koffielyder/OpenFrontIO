@@ -108,7 +108,8 @@ export class GameRunner {
       !this.game.config().isUnitDisabled(UnitType.Factory) ||
       !this.game.config().isUnitDisabled(UnitType.Extractor) ||
       !this.game.config().isUnitDisabled(UnitType.Barracks) ||
-      !this.game.config().isUnitDisabled(UnitType.DefenseDepartment)
+      !this.game.config().isUnitDisabled(UnitType.DefenseDepartment) ||
+      !this.game.config().isUnitDisabled(UnitType.NuclearFacility)
     ) {
       this.game.addExecution(
         new RecomputeRailClusterExecution(this.game.railNetwork()),

@@ -264,6 +264,7 @@ export class RailNetworkImpl implements RailNetwork {
       UnitType.Extractor,
       UnitType.Barracks,
       UnitType.DefenseDepartment,
+      UnitType.NuclearFacility,
     ]);
     neighbors.sort((a, b) => a.distSquared - b.distSquared);
 
@@ -308,6 +309,7 @@ export class RailNetworkImpl implements RailNetwork {
         UnitType.Extractor,
         UnitType.Barracks,
         UnitType.DefenseDepartment,
+        UnitType.NuclearFacility,
       ],
     );
 

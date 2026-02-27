@@ -43,7 +43,6 @@ function activeLevelsForUpgradeBuilding(
     processed.add(cluster);
 
     let resourceCapacity = 0;
-    let factoryLevels = 0;
     let buildingLevels = 0;
 
     for (const clusterStation of cluster.stations) {
@@ -51,11 +50,6 @@ function activeLevelsForUpgradeBuilding(
         !clusterStation.unit.isActive() ||
         clusterStation.unit.owner() !== player
       ) {
-        continue;
-      }
-
-      if (clusterStation.unit.type() === UnitType.Factory) {
-        factoryLevels += clusterStation.unit.level();
         continue;
       }
 
@@ -78,14 +72,9 @@ function activeLevelsForUpgradeBuilding(
       }
     }
 
-    const resourceUsedByFactories = Math.min(resourceCapacity, factoryLevels);
-    const resourceLeftForBuilding = Math.max(
-      0,
-      resourceCapacity - resourceUsedByFactories,
-    );
     const { activeLevels } = poweredLevelsAndResourceUsed(
       buildingLevels,
-      resourceLeftForBuilding,
+      resourceCapacity,
     );
     totalActiveLevels += activeLevels;
   }
@@ -111,5 +100,17 @@ export function activeDefenseDepartmentLevels(
     player,
     UnitType.DefenseDepartment,
     ResourceType.Stone,
+  );
+}
+
+export function activeNuclearFacilityLevels(
+  game: Game,
+  player: Player,
+): number {
+  return activeLevelsForUpgradeBuilding(
+    game,
+    player,
+    UnitType.NuclearFacility,
+    ResourceType.Ore,
   );
 }

@@ -1,4 +1,5 @@
 import { renderNumber, renderTroops } from "../../client/Utils";
+import { UPGRADE_TUNING } from "../configuration/UpgradeTuning";
 import { PseudoRandom } from "../PseudoRandom";
 import { ClientID } from "../Schemas";
 import {
@@ -10,6 +11,7 @@ import {
   within,
 } from "../Util";
 import { AttackImpl } from "./AttackImpl";
+import { activeNuclearFacilityLevels } from "./BarracksBonuses";
 import {
   Alliance,
   AllianceInfo,
@@ -1044,6 +1046,12 @@ export class PlayerImpl implements Player {
     if (unit.owner() !== this) {
       return false;
     }
+    if (
+      unit.type() === UnitType.Extractor &&
+      unit.level() >= UPGRADE_TUNING.extractorMaxLevelPerResource
+    ) {
+      return false;
+    }
     if (isUniqueUpgradeBuildingType(unit.type())) {
       const maxLevel = uniqueUpgradeBuildingMaxLevel(unit.type());
       if (maxLevel !== null && unit.level() >= maxLevel) {
@@ -1151,6 +1159,7 @@ export class PlayerImpl implements Player {
       case UnitType.Factory:
       case UnitType.Barracks:
       case UnitType.DefenseDepartment:
+      case UnitType.NuclearFacility:
         return this.landBasedStructureSpawn(targetTile, validTiles);
       case UnitType.Extractor:
         return this.extractorSpawn(targetTile, validTiles);
@@ -1193,7 +1202,15 @@ export class PlayerImpl implements Player {
       this.mg.config().gameConfig().gameMode === GameMode.Team &&
       nukeType !== UnitType.MIRV
     ) {
-      const magnitude = this.mg.config().nukeMagnitudes(nukeType);
+      const baseMagnitude = this.mg.config().nukeMagnitudes(nukeType);
+      const activeFacilities = activeNuclearFacilityLevels(this.mg, this);
+      const bonus =
+        activeFacilities *
+        this.mg.config().nuclearFacilityNukeRangeBonusPerLevel();
+      const magnitude = {
+        inner: baseMagnitude.inner + bonus,
+        outer: baseMagnitude.outer + bonus,
+      };
       const wouldHitTeammate = this.mg.anyUnitNearby(
         tile,
         magnitude.outer,

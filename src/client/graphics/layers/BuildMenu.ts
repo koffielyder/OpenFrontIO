@@ -138,6 +138,13 @@ export const buildTable: BuildItemDisplay[][] = [
       key: "unit_type.defence_department",
       countable: true,
     },
+    {
+      unitType: UnitType.NuclearFacility,
+      icon: shieldIcon,
+      description: "build_menu.desc.nuclear_facility",
+      key: "unit_type.nuclear_facility",
+      countable: true,
+    },
   ],
 ];
 

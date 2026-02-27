@@ -40,6 +40,7 @@ export class ExtractorExecution implements Execution {
         UnitType.Factory,
         UnitType.Barracks,
         UnitType.DefenseDepartment,
+        UnitType.NuclearFacility,
       ],
     );
 

@@ -485,7 +485,8 @@
     "factory": "Factory",
     "extractor": "Extractor",
     "barracks": "Barracks",
-    "defence_department": "Defence Department"
+    "defence_department": "Defence Department",
+    "nuclear_facility": "Nuclear Facility"
   },
   "user_setting": {
     "title": "Settings",
@@ -534,6 +535,8 @@
     "build_extractor_desc": "Build an Extractor under your cursor.",
     "build_barracks": "Build Barracks",
     "build_barracks_desc": "Build a Barracks under your cursor.",
+    "build_nuclear_facility": "Build Nuclear Facility",
+    "build_nuclear_facility_desc": "Build a Nuclear Facility under your cursor.",
     "build_defense_post": "Build Defense Post",
     "build_defense_post_desc": "Build a Defense Post under your cursor.",
     "build_port": "Build Port",
@@ -698,7 +701,8 @@
       "factory": "Creates railroads and spawns trains",
       "extractor": "Connects to factories and boosts train gold from unique resources",
       "barracks": "Consumes Grain from rail network to boost troop replenish speed",
-      "defence_department": "Increases Defense Post influence radius"
+      "defence_department": "Increases Defense Post influence radius",
+      "nuclear_facility": "Consumes Ore from rail network to increase nuke blast radius"
     },
     "upgrades_title": "Upgrades",
     "upgrades_desc": "Open upgrade buildings",

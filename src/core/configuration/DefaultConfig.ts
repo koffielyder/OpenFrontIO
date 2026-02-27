@@ -26,6 +26,7 @@ import { Config, GameEnv, NukeMagnitude, ServerConfig, Theme } from "./Config";
 import { Env } from "./Env";
 import { PastelTheme } from "./PastelTheme";
 import { PastelThemeDark } from "./PastelThemeDark";
+import { UPGRADE_TUNING } from "./UpgradeTuning";
 
 const DEFENSE_DEBUFF_MIDPOINT = 150_000;
 const DEFENSE_DEBUFF_DECAY_RATE = Math.LN2 / 50000;
@@ -208,12 +209,20 @@ export class DefaultConfig implements Config {
     return 75;
   }
 
+  barracksTroopMultiplierPerLevel(): number {
+    return UPGRADE_TUNING.barracksTroopMultiplierPerLevel;
+  }
+
   defensePostRange(): number {
     return 30;
   }
 
   defenseDepartmentRangeBonusPerLevel(): number {
-    return 8;
+    return UPGRADE_TUNING.defenseDepartmentRangeBonusPerLevel;
+  }
+
+  nuclearFacilityNukeRangeBonusPerLevel(): number {
+    return UPGRADE_TUNING.nuclearFacilityNukeRangeBonusPerLevel;
   }
 
   defensePostDefenseBonus(): number {
@@ -481,6 +490,17 @@ export class DefaultConfig implements Config {
             (numUnits: number) =>
               Math.min(1_000_000, Math.pow(2, numUnits) * 125_000),
             UnitType.DefenseDepartment,
+          ),
+          constructionDuration: this.instantBuild() ? 0 : 2 * 10,
+          upgradable: true,
+        };
+        break;
+      case UnitType.NuclearFacility:
+        info = {
+          cost: this.costWrapper(
+            (numUnits: number) =>
+              Math.min(1_000_000, Math.pow(2, numUnits) * 125_000),
+            UnitType.NuclearFacility,
           ),
           constructionDuration: this.instantBuild() ? 0 : 2 * 10,
           upgradable: true,

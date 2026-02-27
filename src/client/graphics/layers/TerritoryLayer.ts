@@ -22,6 +22,7 @@ import {
 import { FrameProfiler } from "../FrameProfiler";
 import { TransformHandler } from "../TransformHandler";
 import { Layer } from "./Layer";
+import { activeDefenseDepartmentLevelsForPlayer } from "./UpgradeBuildingPower";
 
 export class TerritoryLayer implements Layer {
   private userSettings: UserSettings;
@@ -57,6 +58,36 @@ export class TerritoryLayer implements Layer {
   private lastRefresh = 0;
 
   private lastFocusedPlayer: PlayerView | null = null;
+
+  private effectiveDefensePostRange(owner: PlayerView): number {
+    const activeDefenseDepartments = activeDefenseDepartmentLevelsForPlayer(
+      this.game,
+      owner.id(),
+    );
+    return (
+      this.game.config().defensePostRange() +
+      activeDefenseDepartments *
+        this.game.config().defenseDepartmentRangeBonusPerLevel()
+    );
+  }
+
+  private enqueueDefenseCoverageForPlayer(player: PlayerView) {
+    const range = this.effectiveDefensePostRange(player);
+    for (const post of this.game
+      .units(UnitType.DefensePost)
+      .filter((u) => u.owner().smallID() === player.smallID())) {
+      this.game
+        .bfs(post.tile(), euclDistFN(post.tile(), range))
+        .forEach((t) => {
+          if (
+            this.game.isBorder(t) &&
+            this.game.ownerID(t) === player.smallID()
+          ) {
+            this.enqueueTile(t);
+          }
+        });
+    }
+  }
 
   constructor(
     private game: GameView,
@@ -96,17 +127,64 @@ export class TerritoryLayer implements Layer {
         }
 
         const tile = update.pos;
-        this.game
-          .bfs(tile, euclDistFN(tile, this.game.config().defensePostRange()))
-          .forEach((t) => {
-            if (
-              this.game.isBorder(t) &&
-              (this.game.ownerID(t) === update.ownerID ||
-                this.game.ownerID(t) === update.lastOwnerID)
-            ) {
-              this.enqueueTile(t);
-            }
-          });
+        const owner = this.game.playerBySmallID(update.ownerID);
+        const lastOwner =
+          update.lastOwnerID !== undefined
+            ? this.game.playerBySmallID(update.lastOwnerID)
+            : null;
+        const ownerRange =
+          owner instanceof PlayerView
+            ? this.effectiveDefensePostRange(owner)
+            : 0;
+        const lastOwnerRange =
+          lastOwner instanceof PlayerView
+            ? this.effectiveDefensePostRange(lastOwner)
+            : 0;
+        const redrawRange = Math.max(
+          this.game.config().defensePostRange(),
+          ownerRange,
+          lastOwnerRange,
+        );
+
+        this.game.bfs(tile, euclDistFN(tile, redrawRange)).forEach((t) => {
+          if (
+            this.game.isBorder(t) &&
+            (this.game.ownerID(t) === update.ownerID ||
+              this.game.ownerID(t) === update.lastOwnerID)
+          ) {
+            this.enqueueTile(t);
+          }
+        });
+      }
+
+      if (update.unitType === UnitType.DefenseDepartment) {
+        const playersToRefresh = [
+          this.game.playerBySmallID(update.ownerID),
+          update.lastOwnerID !== undefined
+            ? this.game.playerBySmallID(update.lastOwnerID)
+            : null,
+        ].filter((p): p is PlayerView => p instanceof PlayerView);
+
+        for (const player of playersToRefresh) {
+          this.enqueueDefenseCoverageForPlayer(player);
+        }
+      }
+
+      if (
+        update.unitType === UnitType.Factory ||
+        update.unitType === UnitType.Extractor ||
+        update.unitType === UnitType.Barracks
+      ) {
+        const playersToRefresh = [
+          this.game.playerBySmallID(update.ownerID),
+          update.lastOwnerID !== undefined
+            ? this.game.playerBySmallID(update.lastOwnerID)
+            : null,
+        ].filter((p): p is PlayerView => p instanceof PlayerView);
+
+        for (const player of playersToRefresh) {
+          this.enqueueDefenseCoverageForPlayer(player);
+        }
       }
     });
 
@@ -571,7 +649,7 @@ export class TerritoryLayer implements Layer {
       }
       const isDefended = this.game.hasUnitNearby(
         tile,
-        this.game.config().defensePostRange(),
+        this.effectiveDefensePostRange(owner),
         UnitType.DefensePost,
         owner.id(),
       );

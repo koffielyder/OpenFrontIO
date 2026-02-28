@@ -310,7 +310,7 @@ function uniqueExtractorResourcesConnectedToFactory(
         station.unit.owner() === owner &&
         station.unit.isActive(),
     )
-    .sort((a, b) => a.id - b.id);
+    .sort((a, b) => a.unit.id() - b.unit.id());
 
   let factoryLevelRank = -1;
   let seenFactoryLevels = 0;

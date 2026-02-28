@@ -416,6 +416,7 @@ export class GameImpl implements Game {
       this._ticks,
       this,
     );
+    requestor.removeGold(cappedGold);
     this.troopPurchaseRequests.push(req);
     this.addUpdate(req.toUpdate());
     return req;
@@ -429,24 +430,20 @@ export class GameImpl implements Game {
     const buyer = request.requestor();
     const seller = request.recipient();
 
-    const requestedTroops = request.gold();
+    const reservedGold = request.gold();
     const sellerTroops = seller.troops();
     const maxBySeller = BigInt(
       Math.max(0, Number.isFinite(sellerTroops) ? Math.floor(sellerTroops) : 0),
     );
-    const maxByBuyerGold = buyer.gold();
     const buyerMaxTroops = this.config().maxTroops(buyer);
     const buyerCapacity = Number.isFinite(buyerMaxTroops)
       ? Math.max(0, buyerMaxTroops - buyer.troops())
       : 0;
     const maxByBuyerCapacity = BigInt(Math.floor(buyerCapacity));
 
-    const troopsToSend = [
-      requestedTroops,
-      maxBySeller,
-      maxByBuyerGold,
-      maxByBuyerCapacity,
-    ].reduce((a, b) => (a < b ? a : b));
+    const troopsToSend = [reservedGold, maxBySeller, maxByBuyerCapacity].reduce(
+      (a, b) => (a < b ? a : b),
+    );
 
     let troopsSent = 0;
     let goldPaid = 0n;
@@ -456,8 +453,12 @@ export class GameImpl implements Game {
       goldPaid = troopsToSend;
       seller.removeTroops(troopsSent);
       buyer.addTroops(troopsSent);
-      buyer.removeGold(goldPaid);
       seller.addGold(goldPaid);
+    }
+
+    const refund = reservedGold - goldPaid;
+    if (refund > 0n) {
+      buyer.addGold(refund);
     }
 
     this.addUpdate({
@@ -473,6 +474,10 @@ export class GameImpl implements Game {
     this.troopPurchaseRequests = this.troopPurchaseRequests.filter(
       (r) => r !== request,
     );
+    const refund = request.gold();
+    if (refund > 0n) {
+      request.requestor().addGold(refund);
+    }
     this.addUpdate({
       type: GameUpdateType.TroopPurchaseRequestReply,
       request: request.toUpdate(),

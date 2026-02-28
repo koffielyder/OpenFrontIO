@@ -1,4 +1,5 @@
 import { AllianceRequestExecution } from "../src/core/execution/alliance/AllianceRequestExecution";
+import { BotExecution } from "../src/core/execution/BotExecution";
 import { BuyTroopsReplyExecution } from "../src/core/execution/BuyTroopsReplyExecution";
 import { BuyTroopsRequestExecution } from "../src/core/execution/BuyTroopsRequestExecution";
 import { Game, Player, PlayerType } from "../src/core/game/Game";
@@ -41,7 +42,7 @@ describe("TroopPurchaseRequest", () => {
     buyer.addGold(10_000n);
   });
 
-  test("accept sends available troops and reduces gold to actual sent", () => {
+  test("accept sends available troops and refunds unused reserved gold", () => {
     seller.setTroops(35);
 
     const buyerTroopsBefore = buyer.troops();
@@ -54,6 +55,11 @@ describe("TroopPurchaseRequest", () => {
     );
     game.executeNextTick();
 
+    const createdRequest = buyer.outgoingTroopPurchaseRequests()[0];
+    expect(createdRequest).toBeDefined();
+    const reservedGold = createdRequest!.gold();
+    expect(buyer.gold()).toBe(buyerGoldBefore - reservedGold);
+
     game.addExecution(new BuyTroopsReplyExecution(seller, buyer.id(), true));
     game.executeNextTick();
 
@@ -63,7 +69,7 @@ describe("TroopPurchaseRequest", () => {
     expect(seller.gold()).toBe(sellerGoldBefore + BigInt(sellerTroopsBefore));
   });
 
-  test("reject keeps resources unchanged", () => {
+  test("reject refunds all reserved gold", () => {
     const buyerTroopsBefore = buyer.troops();
     const sellerTroopsBefore = seller.troops();
     const buyerGoldBefore = buyer.gold();
@@ -72,6 +78,11 @@ describe("TroopPurchaseRequest", () => {
     game.addExecution(new BuyTroopsRequestExecution(buyer, seller.id(), 500n));
     game.executeNextTick();
 
+    const createdRequest = buyer.outgoingTroopPurchaseRequests()[0];
+    expect(createdRequest).toBeDefined();
+    const reservedGold = createdRequest!.gold();
+    expect(buyer.gold()).toBe(buyerGoldBefore - reservedGold);
+
     game.addExecution(new BuyTroopsReplyExecution(seller, buyer.id(), false));
     game.executeNextTick();
 
@@ -79,6 +90,26 @@ describe("TroopPurchaseRequest", () => {
     expect(seller.troops()).toBe(sellerTroopsBefore);
     expect(buyer.gold()).toBe(buyerGoldBefore);
     expect(seller.gold()).toBe(sellerGoldBefore);
+  });
+
+  test("timeout refunds all reserved gold", () => {
+    const buyerGoldBefore = buyer.gold();
+
+    game.addExecution(new BuyTroopsRequestExecution(buyer, seller.id(), 300n));
+    game.executeNextTick();
+
+    const createdRequest = buyer.outgoingTroopPurchaseRequests()[0];
+    expect(createdRequest).toBeDefined();
+    const reservedGold = createdRequest!.gold();
+    expect(buyer.gold()).toBe(buyerGoldBefore - reservedGold);
+
+    const timeoutTicks = game.config().allianceRequestDuration() + 2;
+    for (let i = 0; i < timeoutTicks; i++) {
+      game.executeNextTick();
+    }
+
+    expect(buyer.outgoingTroopPurchaseRequests().length).toBe(0);
+    expect(buyer.gold()).toBe(buyerGoldBefore);
   });
 
   test("cannot request troops when buyer is already at max troops", () => {
@@ -136,5 +167,50 @@ describe("TroopPurchaseRequest", () => {
     game.executeNextTick();
 
     expect(buyer.outgoingTroopPurchaseRequests().length).toBe(0);
+  });
+
+  test("bots reject troop purchase requests on their next tick", async () => {
+    const botGame = await setup(
+      "plains",
+      {
+        infiniteGold: false,
+        infiniteTroops: false,
+        donateTroops: true,
+      },
+      [
+        playerInfo("human_buyer", PlayerType.Human),
+        playerInfo("bot_seller", PlayerType.Bot),
+      ],
+    );
+
+    const humanBuyer = botGame.player("human_buyer");
+    const botSeller = botGame.player("bot_seller");
+
+    humanBuyer.conquer(botGame.ref(0, 0));
+    botSeller.conquer(botGame.ref(0, 1));
+
+    while (botGame.inSpawnPhase()) {
+      botGame.executeNextTick();
+    }
+
+    humanBuyer.addGold(500n);
+    botSeller.setTroops(100);
+
+    botGame.addExecution(new BotExecution(botSeller));
+    botGame.executeNextTick();
+
+    const buyerGoldBefore = humanBuyer.gold();
+    botGame.addExecution(
+      new BuyTroopsRequestExecution(humanBuyer, botSeller.id(), 200n),
+    );
+    botGame.executeNextTick();
+
+    expect(humanBuyer.outgoingTroopPurchaseRequests().length).toBe(1);
+    expect(humanBuyer.gold()).toBeLessThan(buyerGoldBefore);
+
+    botGame.executeNextTick();
+
+    expect(humanBuyer.outgoingTroopPurchaseRequests().length).toBe(0);
+    expect(humanBuyer.gold()).toBe(buyerGoldBefore);
   });
 });

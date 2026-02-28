@@ -63,20 +63,24 @@ export class SendResourceModal extends LitElement {
       );
     }
 
-    if (
-      changed.has("total") ||
-      changed.has("mode") ||
-      changed.has("target") ||
-      changed.has("gameView")
-    ) {
-      const basis = this.getPercentBasis();
-      if (this.selectedPercent !== null) {
-        const pct = this.sanitizePercent(this.selectedPercent);
-        const raw = Math.floor((basis * pct) / 100);
-        this.sendAmount = this.clampSend(raw);
-      } else {
-        this.sendAmount = this.clampSend(this.sendAmount);
-      }
+    if (this.open) {
+      this.syncSendAmountToCurrentLimits();
+    }
+  }
+
+  private syncSendAmountToCurrentLimits() {
+    const basis = this.getPercentBasis();
+    const nextAmount =
+      this.selectedPercent !== null
+        ? this.clampSend(
+            Math.floor(
+              (basis * this.sanitizePercent(this.selectedPercent)) / 100,
+            ),
+          )
+        : this.clampSend(this.sendAmount);
+
+    if (nextAmount !== this.sendAmount) {
+      this.sendAmount = nextAmount;
     }
   }
 
@@ -91,25 +95,40 @@ export class SendResourceModal extends LitElement {
 
     const myPlayer = this.myPlayer;
     const target = this.target;
-    const amount = this.limitAmount(this.sendAmount);
+    const proposed = Math.max(0, Math.floor(this.sendAmount));
 
-    if (!myPlayer || !target || amount <= 0) return;
+    if (!myPlayer || !target) return;
+
+    let amount = 0;
 
     if (this.mode === "troops") {
-      const myTroops = Number(myPlayer.troops());
-      if (amount > myTroops) return;
+      amount = this.limitAmount(proposed);
+      if (amount <= 0) return;
       this.eventBus.emit(new SendDonateTroopsIntentEvent(target, amount));
     } else if (this.mode === "buy_troops") {
-      const myGold = Number(myPlayer.gold());
-      if (amount > myGold) return;
+      const myGoldNow = Number(myPlayer.gold());
+      const sellerTroopsNow = Number(target.troops());
+      const buyerTroopsNow = Number(myPlayer.troops());
+      const buyerMaxNow = this.gameView
+        ? Number(this.gameView.config().maxTroops(myPlayer))
+        : Number.POSITIVE_INFINITY;
+      const buyerCapacityNow = Math.max(0, buyerMaxNow - buyerTroopsNow);
+      const maxPossibleNow = Math.floor(
+        Math.min(myGoldNow, sellerTroopsNow, buyerCapacityNow),
+      );
+      amount = within(proposed, 0, maxPossibleNow);
+      if (amount <= 0) return;
       this.eventBus.emit(
         new SendBuyTroopsRequestIntentEvent(target, BigInt(amount)),
       );
     } else {
-      const myGold = Number(myPlayer.gold());
-      if (amount > myGold) return;
+      const myGoldNow = Number(myPlayer.gold());
+      amount = within(proposed, 0, myGoldNow);
+      if (amount <= 0) return;
       this.eventBus.emit(new SendDonateGoldIntentEvent(target, BigInt(amount)));
     }
+
+    this.sendAmount = amount;
 
     this.dispatchEvent(
       new CustomEvent("confirm", {
@@ -448,6 +467,7 @@ export class SendResourceModal extends LitElement {
     const belowMinKeep =
       this.getMinKeepRatio() > 0 &&
       keep < Math.floor(total * this.getMinKeepRatio());
+    const showReceiveTroops = this.mode === "buy_troops";
 
     return html`
       <div class="mt-3 text-center text-sm text-zinc-200">
@@ -455,6 +475,15 @@ export class SendResourceModal extends LitElement {
         <span class="font-semibold text-indigo-400 font-mono"
           >${this.format(allowed)}</span
         >
+        ${showReceiveTroops
+          ? html`
+              · Receive
+              <span class="font-semibold text-emerald-400 font-mono"
+                >${renderTroops(allowed)}</span
+              >
+              troops
+            `
+          : html``}
         · ${this.i18n.summaryKeep()}
         <span
           class="font-semibold font-mono ${belowMinKeep

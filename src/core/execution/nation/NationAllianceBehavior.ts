@@ -5,6 +5,7 @@ import {
   Player,
   PlayerType,
   Relation,
+  TroopPurchaseRequest,
 } from "../../game/Game";
 import { PseudoRandom } from "../../PseudoRandom";
 import { assertNever } from "../../Util";
@@ -29,6 +30,16 @@ export class NationAllianceBehavior {
   handleAllianceRequests() {
     for (const req of this.player.incomingAllianceRequests()) {
       if (this.getAllianceDecision(req.requestor(), true)) {
+        req.accept();
+      } else {
+        req.reject();
+      }
+    }
+  }
+
+  handleTroopPurchaseRequests() {
+    for (const req of this.player.incomingTroopPurchaseRequests()) {
+      if (this.getTroopPurchaseDecision(req)) {
         req.accept();
       } else {
         req.reject();
@@ -132,6 +143,75 @@ export class NationAllianceBehavior {
     }
     // Accept if we are similarly strong
     return this.isAlliancePartnerSimilarlyStrong(otherPlayer);
+  }
+
+  private getTroopPurchaseDecision(req: TroopPurchaseRequest): boolean {
+    const requestor = req.requestor();
+    const requestedTroops = Number(req.gold());
+    if (!Number.isFinite(requestedTroops) || requestedTroops <= 0) {
+      return false;
+    }
+
+    if (this.player.relation(requestor) < Relation.Neutral) {
+      return false;
+    }
+
+    const troopsToSend = this.estimatedTroopsToSend(requestor, requestedTroops);
+    if (troopsToSend <= 0) {
+      return false;
+    }
+
+    if (!this.hasSafePostSaleTroops(troopsToSend)) {
+      return false;
+    }
+
+    return this.couldUseGold(req.gold());
+  }
+
+  private estimatedTroopsToSend(requestor: Player, requestedTroops: number) {
+    const sellerTroops = Math.max(0, Math.floor(this.player.troops()));
+    const requesterMax = this.game.config().maxTroops(requestor);
+    const requesterCapacity = Number.isFinite(requesterMax)
+      ? Math.max(0, Math.floor(requesterMax - requestor.troops()))
+      : 0;
+    return Math.max(
+      0,
+      Math.min(Math.floor(requestedTroops), sellerTroops, requesterCapacity),
+    );
+  }
+
+  private hasSafePostSaleTroops(troopsToSend: number): boolean {
+    const highestNeighborNonAllyTroops = this.player
+      .neighbors()
+      .filter((neighbor) => neighbor.isPlayer())
+      .filter((neighbor) => !this.player.isFriendly(neighbor))
+      .reduce(
+        (max, neighbor) => Math.max(max, Math.max(0, neighbor.troops())),
+        0,
+      );
+
+    if (highestNeighborNonAllyTroops <= 0) {
+      return true;
+    }
+
+    const troopsAfterSale = Math.max(0, this.player.troops() - troopsToSend);
+    return troopsAfterSale >= highestNeighborNonAllyTroops * 0.8;
+  }
+
+  private couldUseGold(incomingGold: bigint): boolean {
+    if (incomingGold <= 0n) {
+      return false;
+    }
+
+    const currentGold = this.player.gold();
+    const comfortGold =
+      this.game.config().startingGold(this.player.info()) * 2n;
+    if (currentGold < comfortGold) {
+      return true;
+    }
+
+    // Gold is still useful if this sale meaningfully increases current reserves.
+    return incomingGold * 5n >= currentGold;
   }
 
   private hasTooManyAlliances(otherPlayer: Player): boolean {

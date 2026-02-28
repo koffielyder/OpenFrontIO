@@ -36,13 +36,15 @@ export class BotExecution implements Execution {
   }
 
   tick(ticks: number) {
-    if (ticks % this.attackRate !== this.attackTick) return;
-
     if (!this.bot.isAlive()) {
       //removeOnDeath is called from bot's PlayerExecution
       this.active = false;
       return;
     }
+
+    this.rejectAllTroopPurchaseRequests();
+
+    if (ticks % this.attackRate !== this.attackTick) return;
 
     if (this.attackBehavior === null) {
       this.attackBehavior = new AiAttackBehavior(
@@ -62,6 +64,12 @@ export class BotExecution implements Execution {
     this.acceptAllAllianceRequests();
     this.deleteAllStructures();
     this.maybeAttack();
+  }
+
+  private rejectAllTroopPurchaseRequests() {
+    for (const req of this.bot.incomingTroopPurchaseRequests()) {
+      req.reject();
+    }
   }
 
   private acceptAllAllianceRequests() {

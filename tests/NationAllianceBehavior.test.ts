@@ -7,6 +7,7 @@ import {
   PlayerInfo,
   PlayerType,
   Tick,
+  TroopPurchaseRequest,
 } from "../src/core/game/Game";
 import { PseudoRandom } from "../src/core/PseudoRandom";
 import { setup } from "./util/Setup";
@@ -176,5 +177,92 @@ describe("AllianceBehavior.handleAllianceExtensionRequests", () => {
     mockAlliance.onlyOneAgreedToExtend.mockReturnValue(false);
     allianceBehavior.handleAllianceExtensionRequests();
     expect(mockGame.addExecution).not.toHaveBeenCalled();
+  });
+});
+
+describe("AllianceBehavior.handleTroopPurchaseRequests", () => {
+  let mockGame: any;
+  let mockPlayer: any;
+  let mockRequestor: any;
+  let mockNeighbor: any;
+  let mockRequest: TroopPurchaseRequest;
+  let mockRandom: any;
+  let allianceBehavior: NationAllianceBehavior;
+
+  beforeEach(() => {
+    mockRandom = { chance: vi.fn() };
+    mockRequestor = {
+      troops: vi.fn(() => 100),
+    };
+    mockNeighbor = {
+      isPlayer: vi.fn(() => true),
+      troops: vi.fn(() => 100),
+    };
+
+    mockPlayer = {
+      incomingTroopPurchaseRequests: vi.fn(),
+      relation: vi.fn(),
+      troops: vi.fn(() => 220),
+      neighbors: vi.fn(() => [mockNeighbor]),
+      isFriendly: vi.fn(() => false),
+      gold: vi.fn(() => 50n),
+      info: vi.fn(
+        () => new PlayerInfo("nation", PlayerType.Nation, null, "nation"),
+      ),
+    };
+
+    mockGame = {
+      config: vi.fn(() => ({
+        maxTroops: vi.fn(() => 300),
+        startingGold: vi.fn(() => 100n),
+      })),
+    };
+
+    mockRequest = {
+      requestor: vi.fn(() => mockRequestor),
+      recipient: vi.fn(() => mockPlayer),
+      gold: vi.fn(() => 100n),
+      createdAt: vi.fn(() => 0 as unknown as Tick),
+      status: vi.fn(() => "pending"),
+      accept: vi.fn(),
+      reject: vi.fn(),
+    } as unknown as TroopPurchaseRequest;
+
+    mockPlayer.incomingTroopPurchaseRequests.mockReturnValue([mockRequest]);
+
+    allianceBehavior = new NationAllianceBehavior(
+      mockRandom,
+      mockGame,
+      mockPlayer,
+      new NationEmojiBehavior(mockRandom, mockGame, mockPlayer),
+    );
+  });
+
+  test("accepts when safe after sale, can use gold, and relation is at least neutral", () => {
+    mockPlayer.relation.mockReturnValue(2);
+
+    allianceBehavior.handleTroopPurchaseRequests();
+
+    expect(mockRequest.accept).toHaveBeenCalled();
+    expect(mockRequest.reject).not.toHaveBeenCalled();
+  });
+
+  test("rejects when selling would drop below 80% of strongest non-allied neighbor", () => {
+    mockPlayer.relation.mockReturnValue(3);
+    mockNeighbor.troops.mockReturnValue(260);
+
+    allianceBehavior.handleTroopPurchaseRequests();
+
+    expect(mockRequest.accept).not.toHaveBeenCalled();
+    expect(mockRequest.reject).toHaveBeenCalled();
+  });
+
+  test("rejects when relation is below neutral", () => {
+    mockPlayer.relation.mockReturnValue(1);
+
+    allianceBehavior.handleTroopPurchaseRequests();
+
+    expect(mockRequest.accept).not.toHaveBeenCalled();
+    expect(mockRequest.reject).toHaveBeenCalled();
   });
 });

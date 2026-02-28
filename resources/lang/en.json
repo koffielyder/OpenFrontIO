@@ -760,6 +760,10 @@
     "mirv_warheads_intercepted": "{count, plural, one {{count} MIRV warhead intercepted} other {{count} MIRV warheads intercepted}}",
     "sent_troops_to_player": "Sent {troops} troops to {name}",
     "received_troops_from_player": "Received {troops} troops from {name}",
+    "troop_purchase_request": "{name} requests to buy {troops} troops for {gold} gold",
+    "troop_purchase_accepted_with_troops": "{name} accepted your troop purchase. Received {troops} troops for {gold} gold.",
+    "troop_purchase_accepted_no_troops": "{name} accepted your troop purchase, but sent no troops.",
+    "troop_purchase_rejected": "{name} rejected your troop purchase request.",
     "sent_gold_to_player": "Sent {gold} gold to {name}",
     "received_gold_from_player": "Received {gold} gold from {name}",
     "unit_captured_by_enemy": "Your {unit} was captured by {name}",
@@ -798,6 +802,7 @@
     "break_alliance": "Break Alliance",
     "send_alliance": "Send Alliance",
     "send_troops": "Send Troops",
+    "buy_troops": "Buy Troops",
     "send_gold": "Send Gold",
     "emotes": "Emojis",
     "moderation": "Moderation",
@@ -824,6 +829,11 @@
     "available_tooltip": "Your current available gold",
     "aria_slider": "Amount slider",
     "slider_tooltip": "{percent}% • {amount}"
+  },
+  "buy_troops_modal": {
+    "title_with_name": "Buy Troops from {name}",
+    "request": "Request",
+    "summary_receive_troops": "Receive {amount} troops"
   },
   "replay_panel": {
     "replay_speed": "Replay speed",

@@ -591,7 +591,11 @@ export class EventsDisplay extends LitElement implements Layer {
     const requestedTroops = Number(update.gold);
 
     this.addEvent({
-      description: `${requestor.name()} requests to buy ${renderTroops(requestedTroops)} troops for ${renderNumber(update.gold)} gold`,
+      description: translateText("events_display.troop_purchase_request", {
+        name: requestor.name(),
+        troops: renderTroops(requestedTroops),
+        gold: renderNumber(update.gold),
+      }),
       buttons: [
         {
           text: translateText("events_display.focus"),
@@ -654,9 +658,20 @@ export class EventsDisplay extends LitElement implements Layer {
     this.addEvent({
       description: update.accepted
         ? update.troopsSent > 0
-          ? `${recipient.name()} accepted your troop purchase. Received ${renderTroops(update.troopsSent)} troops for ${renderNumber(update.goldPaid)} gold.`
-          : `${recipient.name()} accepted your troop purchase, but sent no troops.`
-        : `${recipient.name()} rejected your troop purchase request.`,
+          ? translateText(
+              "events_display.troop_purchase_accepted_with_troops",
+              {
+                name: recipient.name(),
+                troops: renderTroops(update.troopsSent),
+                gold: renderNumber(update.goldPaid),
+              },
+            )
+          : translateText("events_display.troop_purchase_accepted_no_troops", {
+              name: recipient.name(),
+            })
+        : translateText("events_display.troop_purchase_rejected", {
+            name: recipient.name(),
+          }),
       type: update.accepted
         ? MessageType.TROOP_BUY_ACCEPTED
         : MessageType.TROOP_BUY_REJECTED,

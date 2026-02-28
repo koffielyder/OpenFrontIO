@@ -235,7 +235,7 @@ export class SendResourceModal extends LitElement {
       this.mode === "troops"
         ? translateText("send_troops_modal.title_with_name", { name })
         : this.mode === "buy_troops"
-          ? `Buy Troops from ${name}`
+          ? translateText("buy_troops_modal.title_with_name", { name })
           : translateText("send_gold_modal.title_with_name", { name }),
 
     availableChip: () => translateText("common.available"),
@@ -260,7 +260,10 @@ export class SendResourceModal extends LitElement {
     closeLabel: () => translateText("common.close"),
     cancel: () => translateText("common.cancel"),
     send: () => translateText("common.send"),
-    request: () => "Request",
+    request: () => translateText("buy_troops_modal.request"),
+
+    summaryReceiveTroops: (amount: string) =>
+      translateText("buy_troops_modal.summary_receive_troops", { amount }),
 
     cap: () => translateText("common.cap_label"),
     capTooltip: () => translateText("common.cap_tooltip"),
@@ -477,11 +480,10 @@ export class SendResourceModal extends LitElement {
         >
         ${showReceiveTroops
           ? html`
-              · Receive
+              ·
               <span class="font-semibold text-emerald-400 font-mono"
-                >${renderTroops(allowed)}</span
+                >${this.i18n.summaryReceiveTroops(renderTroops(allowed))}</span
               >
-              troops
             `
           : html``}
         · ${this.i18n.summaryKeep()}

@@ -779,8 +779,8 @@ export class PlayerPanel extends LitElement implements Layer {
                   this.handleBuyTroopsClick(e, my, other),
                 icon: donateTroopIcon,
                 iconAlt: "Buy Troops",
-                title: "Buy Troops",
-                label: "Buy Troops",
+                title: translateText("player_panel.buy_troops"),
+                label: translateText("player_panel.buy_troops"),
                 type: "normal",
               })
             : ""}

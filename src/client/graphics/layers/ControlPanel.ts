@@ -1,4 +1,4 @@
-import { LitElement, html } from "lit";
+import { html, LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { EventBus } from "../../../core/EventBus";
 import { Gold } from "../../../core/game/Game";
@@ -8,6 +8,7 @@ import { AttackRatioEvent } from "../../InputHandler";
 import { renderNumber, renderTroops } from "../../Utils";
 import { UIState } from "../UIState";
 import { Layer } from "./Layer";
+import { activeBarracksLevelsForPlayer } from "./UpgradeBuildingPower";
 import goldCoinIcon from "/images/GoldCoinIcon.svg?url";
 import soldierIcon from "/images/SoldierIcon.svg?url";
 import swordIcon from "/images/SwordIcon.svg?url";
@@ -88,7 +89,8 @@ export class ControlPanel extends LitElement implements Layer {
       return;
     }
 
-    this.updateTroopIncrease();
+    const activeBarracks = this.activeBarracksLevelsForPlayer(player.id());
+    this.updateTroopIncrease(activeBarracks);
 
     this._maxTroops = this.game.config().maxTroops(player);
     this._gold = player.gold();
@@ -97,17 +99,40 @@ export class ControlPanel extends LitElement implements Layer {
       .outgoingAttacks()
       .map((a) => a.troops)
       .reduce((a, b) => a + b, 0);
-    this.troopRate = this.game.config().troopIncreaseRate(player) * 10;
+    const baseTroopRate = this.game.config().troopIncreaseRate(player);
+    this.troopRate =
+      Math.max(
+        0,
+        Math.floor(
+          baseTroopRate *
+            (1 +
+              activeBarracks *
+                this.game.config().barracksTroopMultiplierPerLevel()),
+        ),
+      ) * 10;
     this.requestUpdate();
   }
 
-  private updateTroopIncrease() {
+  private updateTroopIncrease(activeBarracks: number) {
     const player = this.game?.myPlayer();
     if (player === null) return;
-    const troopIncreaseRate = this.game.config().troopIncreaseRate(player);
+    const baseTroopRate = this.game.config().troopIncreaseRate(player);
+    const troopIncreaseRate = Math.max(
+      0,
+      Math.floor(
+        baseTroopRate *
+          (1 +
+            activeBarracks *
+              this.game.config().barracksTroopMultiplierPerLevel()),
+      ),
+    );
     this._troopRateIsIncreasing =
       troopIncreaseRate >= this._lastTroopIncreaseRate;
     this._lastTroopIncreaseRate = troopIncreaseRate;
+  }
+
+  private activeBarracksLevelsForPlayer(playerId: string): number {
+    return activeBarracksLevelsForPlayer(this.game, playerId);
   }
 
   onAttackRatioChange(newRatio: number) {

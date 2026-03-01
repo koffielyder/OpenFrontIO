@@ -262,6 +262,9 @@ export class RailNetworkImpl implements RailNetwork {
       UnitType.Factory,
       UnitType.Port,
       UnitType.Extractor,
+      UnitType.Barracks,
+      UnitType.DefenseDepartment,
+      UnitType.NuclearFacility,
     ]);
     neighbors.sort((a, b) => a.distSquared - b.distSquared);
 
@@ -299,7 +302,15 @@ export class RailNetworkImpl implements RailNetwork {
     const neighbors = this.game.nearbyUnits(
       station.tile(),
       this.game.config().trainStationMaxRange(),
-      [UnitType.City, UnitType.Factory, UnitType.Port, UnitType.Extractor],
+      [
+        UnitType.City,
+        UnitType.Factory,
+        UnitType.Port,
+        UnitType.Extractor,
+        UnitType.Barracks,
+        UnitType.DefenseDepartment,
+        UnitType.NuclearFacility,
+      ],
     );
 
     const editedClusters = new Set<Cluster>();

@@ -35,7 +35,13 @@ export class ExtractorExecution implements Execution {
     const structures = this.game.nearbyUnits(
       this.extractor.tile()!,
       this.game.config().trainStationMaxRange(),
-      [UnitType.Extractor, UnitType.Factory],
+      [
+        UnitType.Extractor,
+        UnitType.Factory,
+        UnitType.Barracks,
+        UnitType.DefenseDepartment,
+        UnitType.NuclearFacility,
+      ],
     );
 
     this.game.addExecution(new TrainStationExecution(this.extractor));

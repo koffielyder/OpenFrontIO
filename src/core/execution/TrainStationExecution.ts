@@ -10,7 +10,7 @@ export class TrainStationExecution implements Execution {
   private station: TrainStation | null = null;
   private numCars: number = 5;
   private lastSpawnTick: number = 0;
-  private ticksCooldown: number = 2; // Minimum cooldown between two trains
+  private ticksCooldown: number = 10; // Minimum cooldown between two trains
   private maxTicksWithoutSpawn: number = 20; // Force spawn after this many ticks
   private nextFactoryLevelSlot: number = 0;
   constructor(
@@ -77,9 +77,13 @@ export class TrainStationExecution implements Execution {
     if (!cluster.hasAnyTradeDestination(owner)) {
       return;
     }
-    const forceSpawnAt = this.lastSpawnTick + this.maxTicksWithoutSpawn;
-    const forceSpawn = currentTick >= forceSpawnAt;
-    if (!forceSpawn && !this.shouldSpawnTrain()) {
+    // const forceSpawnAt = this.lastSpawnTick + this.maxTicksWithoutSpawn;
+    // const forceSpawn = currentTick >= forceSpawnAt;
+    // if (!forceSpawn && !this.shouldSpawnTrain()) {
+    //   return;
+    // }
+
+    if (!this.shouldSpawnTrain()) {
       return;
     }
 

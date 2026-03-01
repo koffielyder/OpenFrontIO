@@ -24,6 +24,8 @@ const DefaultKeybinds: Record<string, string> = {
   toggleView: "Space",
   buildCity: "Digit1",
   buildFactory: "Digit2",
+  buildBarracks: "KeyV",
+  buildNuclearFacility: "KeyN",
   buildExtractor: "KeyX",
   buildPort: "Digit3",
   buildDefensePost: "Digit4",
@@ -525,6 +527,26 @@ export class UserSettingModal extends BaseModal {
         defaultKey="KeyX"
         .value=${this.getKeyValue("buildExtractor")}
         .display=${this.getKeyChar("buildExtractor")}
+        @change=${this.handleKeybindChange}
+      ></setting-keybind>
+
+      <setting-keybind
+        action="buildBarracks"
+        label=${translateText("user_setting.build_barracks")}
+        description=${translateText("user_setting.build_barracks_desc")}
+        defaultKey="KeyV"
+        .value=${this.getKeyValue("buildBarracks")}
+        .display=${this.getKeyChar("buildBarracks")}
+        @change=${this.handleKeybindChange}
+      ></setting-keybind>
+
+      <setting-keybind
+        action="buildNuclearFacility"
+        label=${translateText("user_setting.build_nuclear_facility")}
+        description=${translateText("user_setting.build_nuclear_facility_desc")}
+        defaultKey="KeyN"
+        .value=${this.getKeyValue("buildNuclearFacility")}
+        .display=${this.getKeyChar("buildNuclearFacility")}
         @change=${this.handleKeybindChange}
       ></setting-keybind>
 

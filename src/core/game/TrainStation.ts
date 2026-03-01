@@ -83,6 +83,9 @@ export function createTrainStopHandlers(
     [UnitType.Port]: new TradeStationStopHandler(),
     [UnitType.Factory]: new FactoryStopHandler(),
     [UnitType.Extractor]: new FactoryStopHandler(),
+    [UnitType.Barracks]: new FactoryStopHandler(),
+    [UnitType.DefenseDepartment]: new FactoryStopHandler(),
+    [UnitType.NuclearFacility]: new FactoryStopHandler(),
   };
 }
 
@@ -339,6 +342,9 @@ function uniqueExtractorResourcesConnectedToFactory(
 
   const seedKey = resourceSeedKeyFromGameConfig(mg.config().gameConfig());
   const capacityByType = new Map<ResourceType, number>();
+  let barracksLevels = 0;
+  let defenseDepartmentLevels = 0;
+  let nuclearFacilityLevels = 0;
 
   for (const station of cluster.stations) {
     if (
@@ -346,6 +352,27 @@ function uniqueExtractorResourcesConnectedToFactory(
       station.unit.owner() !== owner ||
       !station.unit.isActive()
     ) {
+      if (
+        station.unit.owner() === owner &&
+        station.unit.isActive() &&
+        station.unit.type() === UnitType.Barracks
+      ) {
+        barracksLevels += station.unit.level();
+      }
+      if (
+        station.unit.owner() === owner &&
+        station.unit.isActive() &&
+        station.unit.type() === UnitType.DefenseDepartment
+      ) {
+        defenseDepartmentLevels += station.unit.level();
+      }
+      if (
+        station.unit.owner() === owner &&
+        station.unit.isActive() &&
+        station.unit.type() === UnitType.NuclearFacility
+      ) {
+        nuclearFacilityLevels += station.unit.level();
+      }
       continue;
     }
 
@@ -355,6 +382,36 @@ function uniqueExtractorResourcesConnectedToFactory(
       capacityByType.set(resource, existingCapacity + station.unit.level());
     }
   }
+
+  const grainCapacity = capacityByType.get(ResourceType.Grain) ?? 0;
+  const grainUsedByBarracks = resourceUsedForPoweredLevels(
+    barracksLevels,
+    grainCapacity,
+  );
+  capacityByType.set(
+    ResourceType.Grain,
+    Math.max(0, grainCapacity - grainUsedByBarracks),
+  );
+
+  const stoneCapacity = capacityByType.get(ResourceType.Stone) ?? 0;
+  const stoneUsedByDefenseDepartment = resourceUsedForPoweredLevels(
+    defenseDepartmentLevels,
+    stoneCapacity,
+  );
+  capacityByType.set(
+    ResourceType.Stone,
+    Math.max(0, stoneCapacity - stoneUsedByDefenseDepartment),
+  );
+
+  const oreCapacity = capacityByType.get(ResourceType.Ore) ?? 0;
+  const oreUsedByNuclearFacility = resourceUsedForPoweredLevels(
+    nuclearFacilityLevels,
+    oreCapacity,
+  );
+  capacityByType.set(
+    ResourceType.Ore,
+    Math.max(0, oreCapacity - oreUsedByNuclearFacility),
+  );
 
   const resourcesPerFactoryLevel = Array.from(
     { length: totalFactoryLevels },
@@ -396,6 +453,24 @@ function uniqueExtractorResourcesConnectedToFactory(
   }
 
   return resourcesPerFactoryLevel[factoryLevelRank].size;
+}
+
+function resourceUsedForPoweredLevels(
+  levels: number,
+  availableResource: number,
+): number {
+  let resourceUsed = 0;
+  let activeLevels = 0;
+  let requiredForNextLevel = 1;
+
+  while (activeLevels < levels && availableResource >= requiredForNextLevel) {
+    availableResource -= requiredForNextLevel;
+    resourceUsed += requiredForNextLevel;
+    activeLevels++;
+    requiredForNextLevel *= 2;
+  }
+
+  return resourceUsed;
 }
 
 function bonusMultiplierForUniqueResources(uniqueResources: number): bigint {

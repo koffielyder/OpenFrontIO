@@ -3,6 +3,10 @@ import { Theme } from "../../../core/configuration/Config";
 import { Cell, UnitType } from "../../../core/game/Game";
 import { GameView, PlayerView, UnitView } from "../../../core/game/GameView";
 import { TransformHandler } from "../TransformHandler";
+import {
+  activeDefenseDepartmentLevelsForPlayer,
+  activeNuclearFacilityLevelsForPlayer,
+} from "./UpgradeBuildingPower";
 import anchorIcon from "/images/AnchorIcon.png?url";
 import cityIcon from "/images/CityIcon.png?url";
 import factoryIcon from "/images/FactoryUnit.png?url";
@@ -15,6 +19,9 @@ export const STRUCTURE_SHAPES: Partial<Record<UnitType, ShapeType>> = {
   [UnitType.Port]: "pentagon",
   [UnitType.Factory]: "circle",
   [UnitType.Extractor]: "circle",
+  [UnitType.Barracks]: "octagon",
+  [UnitType.DefenseDepartment]: "octagon",
+  [UnitType.NuclearFacility]: "octagon",
   [UnitType.DefensePost]: "octagon",
   [UnitType.SAMLauncher]: "square",
   [UnitType.MissileSilo]: "triangle",
@@ -60,11 +67,49 @@ export class SpriteFactory {
     [UnitType.City, { iconPath: cityIcon, image: null }],
     [UnitType.Factory, { iconPath: factoryIcon, image: null }],
     [UnitType.Extractor, { iconPath: factoryIcon, image: null }],
+    [UnitType.Barracks, { iconPath: shieldIcon, image: null }],
+    [UnitType.DefenseDepartment, { iconPath: shieldIcon, image: null }],
+    [UnitType.NuclearFacility, { iconPath: shieldIcon, image: null }],
     [UnitType.DefensePost, { iconPath: shieldIcon, image: null }],
     [UnitType.Port, { iconPath: anchorIcon, image: null }],
     [UnitType.MissileSilo, { iconPath: missileSiloIcon, image: null }],
     [UnitType.SAMLauncher, { iconPath: SAMMissileIcon, image: null }],
   ]);
+
+  private effectiveDefensePostRange(): number {
+    const myPlayer = this.game.myPlayer();
+    if (!myPlayer) {
+      return this.game.config().defensePostRange();
+    }
+    const activeDefenseDepartments = activeDefenseDepartmentLevelsForPlayer(
+      this.game,
+      myPlayer.id(),
+    );
+    return (
+      this.game.config().defensePostRange() +
+      activeDefenseDepartments *
+        this.game.config().defenseDepartmentRangeBonusPerLevel()
+    );
+  }
+
+  private effectiveNukeOuterRange(
+    type: UnitType.AtomBomb | UnitType.HydrogenBomb,
+  ): number {
+    const base = this.game.config().nukeMagnitudes(type).outer;
+    const myPlayer = this.game.myPlayer();
+    if (!myPlayer) {
+      return base;
+    }
+    const activeNuclearFacilities = activeNuclearFacilityLevelsForPlayer(
+      this.game,
+      myPlayer.id(),
+    );
+    return (
+      base +
+      activeNuclearFacilities *
+        this.game.config().nuclearFacilityNukeRangeBonusPerLevel()
+    );
+  }
   constructor(
     theme: Theme,
     game: GameView,
@@ -471,13 +516,13 @@ export class SpriteFactory {
         radius = this.game.config().trainStationMaxRange();
         break;
       case UnitType.DefensePost:
-        radius = this.game.config().defensePostRange();
+        radius = this.effectiveDefensePostRange();
         break;
       case UnitType.AtomBomb:
-        radius = this.game.config().nukeMagnitudes(UnitType.AtomBomb).outer;
+        radius = this.effectiveNukeOuterRange(UnitType.AtomBomb);
         break;
       case UnitType.HydrogenBomb:
-        radius = this.game.config().nukeMagnitudes(UnitType.HydrogenBomb).outer;
+        radius = this.effectiveNukeOuterRange(UnitType.HydrogenBomb);
         break;
       default:
         return null;

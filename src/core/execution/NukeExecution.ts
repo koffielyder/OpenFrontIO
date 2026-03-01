@@ -1,3 +1,4 @@
+import { activeNuclearFacilityLevels } from "../game/BarracksBonuses";
 import {
   Execution,
   Game,
@@ -59,7 +60,7 @@ export class NukeExecution implements Execution {
     if (this.nuke === null) {
       throw new Error("Not initialized");
     }
-    const magnitude = this.mg.config().nukeMagnitudes(this.nuke.type());
+    const magnitude = this.effectiveNukeMagnitude(this.nuke.type());
     const rand = new PseudoRandom(this.mg.ticks());
     const inner2 = magnitude.inner * magnitude.inner;
     const outer2 = magnitude.outer * magnitude.outer;
@@ -83,7 +84,7 @@ export class NukeExecution implements Execution {
       return;
     }
 
-    const magnitude = this.mg.config().nukeMagnitudes(this.nuke.type());
+    const magnitude = this.effectiveNukeMagnitude(this.nuke.type());
 
     const playersToBreakAllianceWith = listNukeBreakAlliance({
       game: this.mg,
@@ -255,7 +256,7 @@ export class NukeExecution implements Execution {
     const mg = this.mg;
     const config = mg.config();
 
-    const magnitude = config.nukeMagnitudes(this.nuke.type());
+    const magnitude = this.effectiveNukeMagnitude(this.nuke.type());
     const toDestroy = this.tilesToDestroy();
 
     // Retrieve all impacted players and the number of tiles
@@ -366,5 +367,20 @@ export class NukeExecution implements Execution {
 
   activeDuringSpawnPhase(): boolean {
     return false;
+  }
+
+  private effectiveNukeMagnitude(unitType: UnitType): {
+    inner: number;
+    outer: number;
+  } {
+    const base = this.mg.config().nukeMagnitudes(unitType);
+    const activeFacilities = activeNuclearFacilityLevels(this.mg, this.player);
+    const bonus =
+      activeFacilities *
+      this.mg.config().nuclearFacilityNukeRangeBonusPerLevel();
+    return {
+      inner: base.inner + bonus,
+      outer: base.outer + bonus,
+    };
   }
 }

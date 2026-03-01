@@ -483,7 +483,10 @@
     "hydrogen_bomb": "Hydrogen Bomb",
     "mirv": "MIRV",
     "factory": "Factory",
-    "extractor": "Extractor"
+    "extractor": "Extractor",
+    "barracks": "Barracks",
+    "defence_department": "Defence Department",
+    "nuclear_facility": "Nuclear Facility"
   },
   "user_setting": {
     "title": "Settings",
@@ -530,6 +533,10 @@
     "build_factory_desc": "Build a Factory under your cursor.",
     "build_extractor": "Build Extractor",
     "build_extractor_desc": "Build an Extractor under your cursor.",
+    "build_barracks": "Build Barracks",
+    "build_barracks_desc": "Build a Barracks under your cursor.",
+    "build_nuclear_facility": "Build Nuclear Facility",
+    "build_nuclear_facility_desc": "Build a Nuclear Facility under your cursor.",
     "build_defense_post": "Build Defense Post",
     "build_defense_post_desc": "Build a Defense Post under your cursor.",
     "build_port": "Build Port",
@@ -692,9 +699,15 @@
       "defense_post": "Increases defenses of nearby borders",
       "city": "Increases max population",
       "factory": "Creates railroads and spawns trains",
-      "extractor": "Connects to factories and boosts train gold from unique resources"
+      "extractor": "Connects to factories and boosts train gold from unique resources",
+      "barracks": "Consumes Grain from rail network to boost troop replenish speed",
+      "defence_department": "Increases Defense Post influence radius",
+      "nuclear_facility": "Consumes Ore from rail network to increase nuke blast radius"
     },
-    "not_enough_money": "Not enough money"
+    "upgrades_title": "Upgrades",
+    "upgrades_desc": "Open upgrade buildings",
+    "not_enough_money": "Not enough money",
+    "unique_exists": "Unique building already placed"
   },
   "win_modal": {
     "support_openfront": "Support OpenFront!",

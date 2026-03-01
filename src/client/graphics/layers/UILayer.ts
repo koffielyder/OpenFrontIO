@@ -120,6 +120,9 @@ export class UILayer implements Layer {
       case UnitType.MissileSilo:
       case UnitType.SAMLauncher:
       case UnitType.Extractor:
+      case UnitType.Barracks:
+      case UnitType.DefenseDepartment:
+      case UnitType.NuclearFacility:
         if (
           unit.markedForDeletion() !== false ||
           unit.missileReadinesss() < 1
@@ -338,6 +341,9 @@ export class UILayer implements Layer {
       case UnitType.Factory:
       case UnitType.Port:
       case UnitType.DefensePost:
+      case UnitType.Barracks:
+      case UnitType.DefenseDepartment:
+      case UnitType.NuclearFacility:
         return this.deletionProgress(this.game, unit);
       default:
         return 1;

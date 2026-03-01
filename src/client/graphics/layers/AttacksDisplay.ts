@@ -40,6 +40,32 @@ export class AttacksDisplay extends LitElement implements Layer {
   @state() private outgoingBoats: UnitView[] = [];
   @state() private incomingBoats: UnitView[] = [];
 
+  private splitFrontAttacks() {
+    const usedIncoming = new Set<string>();
+    const fronts: { outgoing: AttackUpdate; incoming: AttackUpdate }[] = [];
+
+    const outgoingUnpaired: AttackUpdate[] = [];
+    for (const outgoing of this.outgoingAttacks) {
+      const match = this.incomingAttacks.find(
+        (incoming) =>
+          !usedIncoming.has(incoming.id) &&
+          incoming.attackerID === outgoing.targetID,
+      );
+      if (match) {
+        usedIncoming.add(match.id);
+        fronts.push({ outgoing, incoming: match });
+      } else {
+        outgoingUnpaired.push(outgoing);
+      }
+    }
+
+    const incomingUnpaired = this.incomingAttacks.filter(
+      (incoming) => !usedIncoming.has(incoming.id),
+    );
+
+    return { fronts, outgoingUnpaired, incomingUnpaired };
+  }
+
   createRenderRoot() {
     return this;
   }
@@ -215,10 +241,12 @@ export class AttacksDisplay extends LitElement implements Layer {
     this.eventBus.emit(new SendAttackIntentEvent(attacker.id(), counterTroops));
   }
 
-  private renderIncomingAttacks() {
-    if (this.incomingAttacks.length === 0) return html``;
+  private renderIncomingAttacks(
+    attacks: AttackUpdate[] = this.incomingAttacks,
+  ) {
+    if (attacks.length === 0) return html``;
 
-    return this.incomingAttacks.map(
+    return attacks.map(
       (attack) => html`
         <div
           class="flex items-center gap-0.5 w-full bg-gray-800/70 backdrop-blur-xs min-[1200px]:rounded-lg sm:rounded-r-lg px-1.5 py-0.5 overflow-hidden"
@@ -263,10 +291,61 @@ export class AttacksDisplay extends LitElement implements Layer {
     );
   }
 
-  private renderOutgoingAttacks() {
-    if (this.outgoingAttacks.length === 0) return html``;
+  private renderFrontBattles(
+    fronts: { outgoing: AttackUpdate; incoming: AttackUpdate }[],
+  ) {
+    if (fronts.length === 0) return html``;
 
-    return this.outgoingAttacks.map(
+    return fronts.map(({ outgoing, incoming }) => {
+      const opponent = this.game.playerBySmallID(outgoing.targetID) as
+        | PlayerView
+        | undefined;
+      const retreating = outgoing.retreating || incoming.retreating;
+      return html`
+        <div
+          class="flex items-center gap-0.5 w-full bg-gray-800/70 backdrop-blur-xs min-[1200px]:rounded-lg sm:rounded-r-lg px-1.5 py-0.5 overflow-hidden"
+        >
+          ${this.renderButton({
+            content: html`<img
+                src="${swordIcon}"
+                class="h-4 w-4 inline-block"
+                style="filter: invert(1)"
+              />
+              <span class="inline-block min-w-[3rem] text-right text-blue-400"
+                >${renderTroops(outgoing.troops)}</span
+              >
+              <span class="mx-1 text-gray-300">vs</span>
+              <span class="inline-block min-w-[3rem] text-right text-red-400"
+                >${renderTroops(incoming.troops)}</span
+              >
+              <span class="truncate ml-1">${opponent?.name() ?? ""}</span>
+              ${retreating
+                ? `(${translateText("events_display.retreating")}...)`
+                : ""}`,
+            onClick: async () => this.attackWarningOnClick(outgoing),
+            className:
+              "text-left text-white inline-flex items-center gap-0.5 lg:gap-1 min-w-0",
+            translate: false,
+          })}
+          ${!outgoing.retreating
+            ? this.renderButton({
+                content: "❌",
+                onClick: () => this.emitCancelAttackIntent(outgoing.id),
+                className: "ml-auto text-left shrink-0",
+                disabled: outgoing.retreating,
+              })
+            : html``}
+        </div>
+      `;
+    });
+  }
+
+  private renderOutgoingAttacks(
+    attacks: AttackUpdate[] = this.outgoingAttacks,
+  ) {
+    if (attacks.length === 0) return html``;
+
+    return attacks.map(
       (attack) => html`
         <div
           class="flex items-center gap-0.5 w-full bg-gray-800/70 backdrop-blur-xs min-[1200px]:rounded-lg sm:rounded-r-lg px-1.5 py-0.5 overflow-hidden"
@@ -428,11 +507,15 @@ export class AttacksDisplay extends LitElement implements Layer {
       return html``;
     }
 
+    const { fronts, outgoingUnpaired, incomingUnpaired } =
+      this.splitFrontAttacks();
+
     const hasAnything =
-      this.outgoingAttacks.length > 0 ||
+      fronts.length > 0 ||
+      outgoingUnpaired.length > 0 ||
       this.outgoingLandAttacks.length > 0 ||
       this.outgoingBoats.length > 0 ||
-      this.incomingAttacks.length > 0 ||
+      incomingUnpaired.length > 0 ||
       this.incomingBoats.length > 0;
 
     if (!hasAnything) {
@@ -443,8 +526,10 @@ export class AttacksDisplay extends LitElement implements Layer {
       <div
         class="w-full mb-1 mt-1 sm:mt-0 pointer-events-auto grid grid-cols-2 sm:grid-cols-1 gap-1 text-white text-sm lg:text-base"
       >
-        ${this.renderOutgoingAttacks()} ${this.renderOutgoingLandAttacks()}
-        ${this.renderBoats()} ${this.renderIncomingAttacks()}
+        ${this.renderFrontBattles(fronts)}
+        ${this.renderOutgoingAttacks(outgoingUnpaired)}
+        ${this.renderOutgoingLandAttacks()} ${this.renderBoats()}
+        ${this.renderIncomingAttacks(incomingUnpaired)}
         ${this.renderIncomingBoats()}
       </div>
     `;

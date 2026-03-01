@@ -29,6 +29,9 @@ export class AttackExecution implements Execution {
 
   private attack: Attack | null = null;
 
+  // Used to pace opposing-attack battles so they are visible instead of instant.
+  private static readonly OPPOSING_ATTACK_BATTLE_STEPS = 8;
+
   constructor(
     private startTroops: number | null = null,
     private _owner: Player,
@@ -120,20 +123,6 @@ export class AttackExecution implements Execution {
     // Record stats
     this.mg.stats().attack(this._owner, this.target, this.startTroops);
 
-    for (const incoming of this._owner.incomingAttacks()) {
-      if (incoming.attacker() === this.target) {
-        // Target has opposing attack, cancel them out
-        if (incoming.troops() > this.attack.troops()) {
-          incoming.setTroops(incoming.troops() - this.attack.troops());
-          this.attack.delete();
-          this.active = false;
-          return;
-        } else {
-          this.attack.setTroops(this.attack.troops() - incoming.troops());
-          incoming.delete();
-        }
-      }
-    }
     for (const outgoing of this._owner.outgoingAttacks()) {
       if (
         outgoing !== this.attack &&
@@ -248,6 +237,10 @@ export class AttackExecution implements Execution {
       return;
     }
 
+    if (this.resolveOpposingAttackBattle()) {
+      return;
+    }
+
     let numTilesPerTick = this.mg
       .config()
       .attackTilesPerTick(
@@ -302,6 +295,54 @@ export class AttackExecution implements Execution {
       this._owner.conquer(tileToConquer);
       this.handleDeadDefender();
     }
+  }
+
+  private resolveOpposingAttackBattle(): boolean {
+    if (this.attack === null || !this.target.isPlayer()) {
+      return false;
+    }
+
+    const opposingAttack = this._owner
+      .incomingAttacks()
+      .find((incoming) => incoming.attacker() === this.target);
+
+    if (!opposingAttack) {
+      return false;
+    }
+
+    if (!opposingAttack.isActive()) {
+      return false;
+    }
+
+    const myTroops = this.attack.troops();
+    const opposingTroops = opposingAttack.troops();
+
+    if (myTroops <= 0) {
+      this.attack.delete();
+      this.active = false;
+      return true;
+    }
+
+    if (opposingTroops <= 0) {
+      opposingAttack.delete();
+      return false;
+    }
+
+    const baseLoss = Math.ceil(
+      Math.min(myTroops, opposingTroops) /
+        AttackExecution.OPPOSING_ATTACK_BATTLE_STEPS,
+    );
+    const loss = Math.max(1, Math.min(baseLoss, myTroops));
+
+    this.attack.setTroops(myTroops - loss);
+
+    if (this.attack.troops() <= 0) {
+      this.attack.delete();
+      this.active = false;
+    }
+
+    // While fronts clash, only the side with more troops should keep advancing.
+    return this.attack.troops() <= opposingAttack.troops();
   }
 
   private rejectIncomingAllianceRequests(target: Player) {

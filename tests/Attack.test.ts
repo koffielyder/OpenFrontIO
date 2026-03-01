@@ -146,6 +146,38 @@ describe("Attack", () => {
     expect(boat_troops).toBeLessThan(defender.troops());
     expect(defender.troops()).toBeLessThan(player_start_troops);
   });
+
+  test("Counter-attacks resolve as a battle before conquest", async () => {
+    const initialDefenderTiles = defender.numTilesOwned();
+
+    game.addExecution(new AttackExecution(100, attacker, defender.id()));
+    game.addExecution(new AttackExecution(50, defender, attacker.id()));
+
+    // First tick initializes attacks, second tick applies opposing-attack battle.
+    game.executeNextTick();
+    game.executeNextTick();
+
+    expect(attacker.outgoingAttacks()).toHaveLength(1);
+    expect(defender.outgoingAttacks()).toHaveLength(1);
+
+    expect(attacker.outgoingAttacks()[0].troops()).toBeLessThan(100);
+    expect(defender.outgoingAttacks()[0].troops()).toBeGreaterThan(0);
+    expect(defender.outgoingAttacks()[0].troops()).toBeLessThan(50);
+
+    for (let i = 0; i < 5; i++) {
+      game.executeNextTick();
+    }
+
+    expect(defender.numTilesOwned()).toBeLessThan(initialDefenderTiles);
+
+    let safety = 0;
+    while (defender.outgoingAttacks().length > 0 && safety < 30) {
+      game.executeNextTick();
+      safety += 1;
+    }
+
+    expect(defender.outgoingAttacks()).toHaveLength(0);
+  });
 });
 
 let playerA: Player;

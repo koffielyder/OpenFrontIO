@@ -114,3 +114,72 @@ export function activeNuclearFacilityLevels(
     ResourceType.Ore,
   );
 }
+
+export function activeWarDepartmentLevels(game: Game, player: Player): number {
+  const seedKey = resourceSeedKeyFromGameConfig(game.config().gameConfig());
+  const stations = game.railNetwork().stationManager().getAll();
+
+  const processed = new Set<unknown>();
+  let totalActiveLevels = 0;
+
+  for (const station of stations) {
+    const cluster = station.getCluster();
+    if (cluster === null || processed.has(cluster)) {
+      continue;
+    }
+    processed.add(cluster);
+
+    let oreCapacity = 0;
+    let nuclearFacilityLevels = 0;
+    let warDepartmentLevels = 0;
+
+    for (const clusterStation of cluster.stations) {
+      if (
+        !clusterStation.unit.isActive() ||
+        clusterStation.unit.owner() !== player
+      ) {
+        continue;
+      }
+
+      if (clusterStation.unit.type() === UnitType.NuclearFacility) {
+        nuclearFacilityLevels += clusterStation.unit.level();
+        continue;
+      }
+
+      if (clusterStation.unit.type() === UnitType.WarDepartment) {
+        warDepartmentLevels += clusterStation.unit.level();
+        continue;
+      }
+
+      if (clusterStation.unit.type() !== UnitType.Extractor) {
+        continue;
+      }
+
+      const resource = getResourceTypeAtTile(
+        game,
+        seedKey,
+        clusterStation.tile(),
+      );
+      if (resource === ResourceType.Ore) {
+        oreCapacity += clusterStation.unit.level();
+      }
+    }
+
+    const { resourceUsed: oreUsedByNuclear } = poweredLevelsAndResourceUsed(
+      nuclearFacilityLevels,
+      oreCapacity,
+    );
+    const availableOreForWarDepartment = Math.max(
+      0,
+      oreCapacity - oreUsedByNuclear,
+    );
+    const { activeLevels: activeWarDepartments } = poweredLevelsAndResourceUsed(
+      warDepartmentLevels,
+      availableOreForWarDepartment,
+    );
+
+    totalActiveLevels += activeWarDepartments;
+  }
+
+  return totalActiveLevels;
+}

@@ -134,6 +134,8 @@ export class StructureIconsLayer implements Layer {
     barracksGrainConnected: number | null;
     defenseDepartmentStoneNeeded: number | null;
     defenseDepartmentStoneConnected: number | null;
+    warDepartmentOreNeeded: number | null;
+    warDepartmentOreConnected: number | null;
     nuclearFacilityOreNeeded: number | null;
     nuclearFacilityOreConnected: number | null;
   } | null = null;
@@ -143,6 +145,7 @@ export class StructureIconsLayer implements Layer {
     [UnitType.Extractor, { visible: true }],
     [UnitType.Barracks, { visible: true }],
     [UnitType.DefenseDepartment, { visible: true }],
+    [UnitType.WarDepartment, { visible: true }],
     [UnitType.NuclearFacility, { visible: true }],
     [UnitType.DefensePost, { visible: true }],
     [UnitType.Port, { visible: true }],
@@ -296,6 +299,7 @@ export class StructureIconsLayer implements Layer {
         UnitType.Extractor,
         UnitType.Barracks,
         UnitType.DefenseDepartment,
+        UnitType.WarDepartment,
         UnitType.NuclearFacility,
       ])
       .filter(({ unit }) => unit.isActive())
@@ -345,6 +349,12 @@ export class StructureIconsLayer implements Layer {
       stats.nuclearFacilityOreConnected !== null
         ? `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#c4b5fd">Nuclear Facility Ore</span><span>connected ${stats.nuclearFacilityOreConnected} • needed ${stats.nuclearFacilityOreNeeded}</span></div>`
         : "";
+    const warDepartmentLine =
+      stats.anchorType === UnitType.WarDepartment &&
+      stats.warDepartmentOreNeeded !== null &&
+      stats.warDepartmentOreConnected !== null
+        ? `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#fca5a5">War Department Ore</span><span>connected ${stats.warDepartmentOreConnected} • needed ${stats.warDepartmentOreNeeded}</span></div>`
+        : "";
 
     this.hoverTooltip.innerHTML =
       `<div style="font-weight:700;margin-bottom:4px">Network Resources</div>` +
@@ -353,6 +363,7 @@ export class StructureIconsLayer implements Layer {
       `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#d1d5db">Stone</span><span>used ${stats.stoneUsed} • free ${stoneFree}</span></div>` +
       barracksLine +
       defenseDepartmentLine +
+      warDepartmentLine +
       nuclearFacilityLine;
     this.hoverTooltip.style.left = `${screenX + 12}px`;
     this.hoverTooltip.style.top = `${screenY + 12}px`;
@@ -369,6 +380,7 @@ export class StructureIconsLayer implements Layer {
         UnitType.Extractor,
         UnitType.Barracks,
         UnitType.DefenseDepartment,
+        UnitType.WarDepartment,
         UnitType.NuclearFacility,
       )
       .filter((unit) => unit.isActive());
@@ -392,6 +404,7 @@ export class StructureIconsLayer implements Layer {
           UnitType.Extractor,
           UnitType.Barracks,
           UnitType.DefenseDepartment,
+          UnitType.WarDepartment,
           UnitType.NuclearFacility,
         ])
         .filter(
@@ -455,6 +468,15 @@ export class StructureIconsLayer implements Layer {
       (sum, station) => sum + station.level(),
       0,
     );
+    const ownerWarDepartments = componentStations.filter(
+      (station) =>
+        station.type() === UnitType.WarDepartment &&
+        station.owner().id() === ownerId,
+    );
+    const warDepartmentLevels = ownerWarDepartments.reduce(
+      (sum, station) => sum + station.level(),
+      0,
+    );
 
     const seedKey = resourceSeedKeyFromGameConfig(
       this.game.config().gameConfig(),
@@ -505,9 +527,17 @@ export class StructureIconsLayer implements Layer {
       nuclearFacilityLevels,
       oreTotal,
     );
-    const oreLeftForFactories = Math.max(
+    const oreLeftForWarDepartment = Math.max(
       0,
       oreTotal - oreUsedByNuclearFacility,
+    );
+    const oreUsedByWarDepartment = grainUsedByBarracksLevels(
+      warDepartmentLevels,
+      oreLeftForWarDepartment,
+    );
+    const oreLeftForFactories = Math.max(
+      0,
+      oreTotal - oreUsedByNuclearFacility - oreUsedByWarDepartment,
     );
     const oreUsedByFactories = Math.min(oreLeftForFactories, factoryLevels);
 
@@ -529,19 +559,28 @@ export class StructureIconsLayer implements Layer {
         : null;
     const nuclearFacilityOreConnected =
       anchor.type() === UnitType.NuclearFacility ? oreTotal : null;
+    const warDepartmentOreNeeded =
+      anchor.type() === UnitType.WarDepartment
+        ? grainNeededForBarracksLevel(anchor.level())
+        : null;
+    const warDepartmentOreConnected =
+      anchor.type() === UnitType.WarDepartment ? oreTotal : null;
 
     return {
       anchorType: anchor.type(),
       oreTotal,
       grainTotal,
       stoneTotal,
-      oreUsed: oreUsedByFactories + oreUsedByNuclearFacility,
+      oreUsed:
+        oreUsedByFactories + oreUsedByNuclearFacility + oreUsedByWarDepartment,
       grainUsed: grainUsedByFactories + grainUsedByBarracks,
       stoneUsed: stoneUsedByFactories + stoneUsedByDefenseDepartment,
       barracksGrainNeeded,
       barracksGrainConnected,
       defenseDepartmentStoneNeeded,
       defenseDepartmentStoneConnected,
+      warDepartmentOreNeeded,
+      warDepartmentOreConnected,
       nuclearFacilityOreNeeded,
       nuclearFacilityOreConnected,
     };
@@ -1216,6 +1255,7 @@ export class StructureIconsLayer implements Layer {
         UnitType.Extractor,
         UnitType.Barracks,
         UnitType.DefenseDepartment,
+        UnitType.WarDepartment,
         UnitType.NuclearFacility,
       )
       .filter((unit) => unit.isActive());
@@ -1238,6 +1278,7 @@ export class StructureIconsLayer implements Layer {
           UnitType.Extractor,
           UnitType.Barracks,
           UnitType.DefenseDepartment,
+          UnitType.WarDepartment,
           UnitType.NuclearFacility,
         ])
         .filter(
@@ -1359,6 +1400,14 @@ export class StructureIconsLayer implements Layer {
               station.isActive(),
           )
           .reduce((sum, station) => sum + station.level(), 0);
+        const warDepartmentLevels = componentStations
+          .filter(
+            (station) =>
+              station.type() === UnitType.WarDepartment &&
+              station.owner().id() === ownerId &&
+              station.isActive(),
+          )
+          .reduce((sum, station) => sum + station.level(), 0);
 
         const grainCapacity = capacityByType.get(ResourceType.Grain) ?? 0;
         const grainUsedByBarracks = grainUsedByBarracksLevels(
@@ -1385,9 +1434,16 @@ export class StructureIconsLayer implements Layer {
           nuclearFacilityLevels,
           oreCapacity,
         );
+        const oreUsedByWarDepartment = grainUsedByBarracksLevels(
+          warDepartmentLevels,
+          Math.max(0, oreCapacity - oreUsedByNuclearFacility),
+        );
         capacityByType.set(
           ResourceType.Ore,
-          Math.max(0, oreCapacity - oreUsedByNuclearFacility),
+          Math.max(
+            0,
+            oreCapacity - oreUsedByNuclearFacility - oreUsedByWarDepartment,
+          ),
         );
 
         const capacities = Array.from(capacityByType.entries()).sort(

@@ -486,6 +486,7 @@
     "extractor": "Extractor",
     "barracks": "Barracks",
     "defence_department": "Defence Department",
+    "war_department": "War Department",
     "nuclear_facility": "Nuclear Facility"
   },
   "user_setting": {
@@ -701,7 +702,8 @@
       "factory": "Creates railroads and spawns trains",
       "extractor": "Connects to factories and boosts train gold from unique resources",
       "barracks": "Consumes Grain from rail network to boost troop replenish speed",
-      "defence_department": "Increases Defense Post influence radius",
+      "defence_department": "Increases Defense Post influence radius and defending troop strength",
+      "war_department": "Consumes Ore from rail network to increase attacking troop strength",
       "nuclear_facility": "Consumes Ore from rail network to increase nuke blast radius"
     },
     "upgrades_title": "Upgrades",

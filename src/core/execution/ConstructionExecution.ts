@@ -12,6 +12,7 @@ import { NuclearFacilityExecution } from "./NuclearFacilityExecution";
 import { NukeExecution } from "./NukeExecution";
 import { PortExecution } from "./PortExecution";
 import { SAMLauncherExecution } from "./SAMLauncherExecution";
+import { WarDepartmentExecution } from "./WarDepartmentExecution";
 import { WarshipExecution } from "./WarshipExecution";
 
 export class ConstructionExecution implements Execution {
@@ -157,6 +158,9 @@ export class ConstructionExecution implements Execution {
       case UnitType.DefenseDepartment:
         this.mg.addExecution(new DefenseDepartmentExecution(this.structure!));
         break;
+      case UnitType.WarDepartment:
+        this.mg.addExecution(new WarDepartmentExecution(this.structure!));
+        break;
       case UnitType.NuclearFacility:
         this.mg.addExecution(new NuclearFacilityExecution(this.structure!));
         break;
@@ -179,6 +183,7 @@ export class ConstructionExecution implements Execution {
       case UnitType.Extractor:
       case UnitType.Barracks:
       case UnitType.DefenseDepartment:
+      case UnitType.WarDepartment:
       case UnitType.NuclearFacility:
         return true;
       default:

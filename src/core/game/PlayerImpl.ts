@@ -1159,6 +1159,7 @@ export class PlayerImpl implements Player {
       case UnitType.Factory:
       case UnitType.Barracks:
       case UnitType.DefenseDepartment:
+      case UnitType.WarDepartment:
       case UnitType.NuclearFacility:
         return this.landBasedStructureSpawn(targetTile, validTiles);
       case UnitType.Extractor:

@@ -202,6 +202,7 @@ export class UnitDisplay extends LitElement implements Layer {
         UnitType.Extractor,
         UnitType.Barracks,
         UnitType.DefenseDepartment,
+        UnitType.WarDepartment,
         UnitType.NuclearFacility,
       )
       .filter((unit) => unit.isActive());
@@ -224,6 +225,7 @@ export class UnitDisplay extends LitElement implements Layer {
           UnitType.Extractor,
           UnitType.Barracks,
           UnitType.DefenseDepartment,
+          UnitType.WarDepartment,
           UnitType.NuclearFacility,
         ])
         .filter(
@@ -310,6 +312,15 @@ export class UnitDisplay extends LitElement implements Layer {
         (sum, station) => sum + station.level(),
         0,
       );
+      const myWarDepartments = componentStations.filter(
+        (station) =>
+          station.type() === UnitType.WarDepartment &&
+          station.owner().id() === myPlayerId,
+      );
+      const warDepartmentLevels = myWarDepartments.reduce(
+        (sum, station) => sum + station.level(),
+        0,
+      );
 
       let oreCapacity = 0;
       let grainCapacity = 0;
@@ -349,12 +360,21 @@ export class UnitDisplay extends LitElement implements Layer {
         nuclearFacilityLevels,
         oreCapacity,
       );
-      const oreLeftForFactories = Math.max(
+      const oreLeftForWarDepartment = Math.max(
         0,
         oreCapacity - oreUsedByNuclearFacility,
       );
+      const oreUsedByWarDepartment = oreUsedByNuclearFacilityLevels(
+        warDepartmentLevels,
+        oreLeftForWarDepartment,
+      );
+      const oreLeftForFactories = Math.max(
+        0,
+        oreCapacity - oreUsedByNuclearFacility - oreUsedByWarDepartment,
+      );
       const oreUsedByFactories = Math.min(oreLeftForFactories, factoryLevels);
-      oreUsed += oreUsedByFactories + oreUsedByNuclearFacility;
+      oreUsed +=
+        oreUsedByFactories + oreUsedByNuclearFacility + oreUsedByWarDepartment;
       const grainUsedByBarracks = grainUsedByBarracksLevels(
         barracksLevels,
         grainCapacity,

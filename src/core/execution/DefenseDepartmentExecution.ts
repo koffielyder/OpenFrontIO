@@ -42,6 +42,7 @@ export class DefenseDepartmentExecution implements Execution {
         UnitType.Extractor,
         UnitType.Barracks,
         UnitType.DefenseDepartment,
+        UnitType.WarDepartment,
         UnitType.NuclearFacility,
       ],
     );

@@ -605,10 +605,11 @@ export const buildMenuElement: MenuElement = {
 
   subMenu: (params: MenuElementParams) => {
     if (params === undefined) return [];
-    return [
-      ...createMenuElements(params, "build", "build"),
-      upgradesMenuElement,
-    ];
+    const buildItems = createMenuElements(params, "build", "build");
+    const upgradeItems = createMenuElements(params, "upgrade", "upgrade");
+    return upgradeItems.length > 0
+      ? [...buildItems, upgradesMenuElement]
+      : buildItems;
   },
 };
 

@@ -22,6 +22,11 @@ import {
   GoToPositionEvent,
   GoToUnitEvent,
 } from "./Leaderboard";
+import {
+  activeDefenseDepartmentLevelsForPlayer,
+  activeWarDepartmentLevelsForPlayer,
+} from "./UpgradeBuildingPower";
+import shieldIcon from "/images/ShieldIcon.svg?url";
 import swordIcon from "/images/SwordIcon.svg?url";
 
 @customElement("attacks-display")
@@ -246,33 +251,56 @@ export class AttacksDisplay extends LitElement implements Layer {
   ) {
     if (attacks.length === 0) return html``;
 
+    const myDefenseDepartmentLevels = this.game.myPlayer()
+      ? activeDefenseDepartmentLevelsForPlayer(
+          this.game,
+          this.game.myPlayer()!.id(),
+        )
+      : 0;
+
     return attacks.map(
       (attack) => html`
         <div
           class="flex items-center gap-0.5 w-full bg-gray-800/70 backdrop-blur-xs min-[1200px]:rounded-lg sm:rounded-r-lg px-1.5 py-0.5 overflow-hidden"
         >
-          ${this.renderButton({
-            content: html`<img
-                src="${swordIcon}"
-                class="h-4 w-4 inline-block"
-                style="filter: brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(4551%) hue-rotate(348deg) brightness(89%) contrast(97%)"
-              />
-              <span class="inline-block min-w-[3rem] text-right"
-                >${renderTroops(attack.troops)}</span
-              >
-              <span class="truncate ml-1"
-                >${(
-                  this.game.playerBySmallID(attack.attackerID) as PlayerView
-                )?.name()}</span
-              >
-              ${attack.retreating
-                ? `(${translateText("events_display.retreating")}...)`
-                : ""} `,
-            onClick: () => this.attackWarningOnClick(attack),
-            className:
-              "text-left text-red-400 inline-flex items-center gap-0.5 lg:gap-1 min-w-0",
-            translate: false,
-          })}
+          ${(() => {
+            const attacker = this.game.playerBySmallID(attack.attackerID) as
+              | PlayerView
+              | undefined;
+            const attackerWarDepartmentLevels = attacker
+              ? activeWarDepartmentLevelsForPlayer(this.game, attacker.id())
+              : 0;
+            return this.renderButton({
+              content: html`<img
+                  src="${swordIcon}"
+                  class="h-4 w-4 inline-block"
+                  style="filter: brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(4551%) hue-rotate(348deg) brightness(89%) contrast(97%)"
+                />
+                <span class="inline-flex items-center gap-0.5"
+                  >${this.renderWarDepartmentLevelIndicators(
+                    attackerWarDepartmentLevels,
+                    "red",
+                  )}</span
+                >
+                <span class="inline-flex items-center gap-0.5"
+                  >${this.renderDefenseDepartmentLevelIndicators(
+                    myDefenseDepartmentLevels,
+                    "blue",
+                  )}</span
+                >
+                <span class="inline-block min-w-[3rem] text-right"
+                  >${renderTroops(attack.troops)}</span
+                >
+                <span class="truncate ml-1">${attacker?.name()}</span>
+                ${attack.retreating
+                  ? `(${translateText("events_display.retreating")}...)`
+                  : ""} `,
+              onClick: () => this.attackWarningOnClick(attack),
+              className:
+                "text-left text-red-400 inline-flex items-center gap-0.5 lg:gap-1 min-w-0",
+              translate: false,
+            });
+          })()}
           ${!attack.retreating
             ? this.renderButton({
                 content: html`<img
@@ -296,10 +324,20 @@ export class AttacksDisplay extends LitElement implements Layer {
   ) {
     if (fronts.length === 0) return html``;
 
+    const myDefenseDepartmentLevels = this.game.myPlayer()
+      ? activeDefenseDepartmentLevelsForPlayer(
+          this.game,
+          this.game.myPlayer()!.id(),
+        )
+      : 0;
+
     return fronts.map(({ outgoing, incoming }) => {
       const opponent = this.game.playerBySmallID(outgoing.targetID) as
         | PlayerView
         | undefined;
+      const opponentDefenseDepartmentLevels = opponent
+        ? activeDefenseDepartmentLevelsForPlayer(this.game, opponent.id())
+        : 0;
       const retreating = outgoing.retreating || incoming.retreating;
       return html`
         <div
@@ -311,12 +349,46 @@ export class AttacksDisplay extends LitElement implements Layer {
                 class="h-4 w-4 inline-block"
                 style="filter: invert(1)"
               />
+              <span class="inline-flex items-center gap-0.5"
+                >${this.renderWarDepartmentLevelIndicators(
+                  this.game.myPlayer()
+                    ? activeWarDepartmentLevelsForPlayer(
+                        this.game,
+                        this.game.myPlayer()!.id(),
+                      )
+                    : 0,
+                  "blue",
+                )}</span
+              >
+              <span class="inline-flex items-center gap-0.5"
+                >${this.renderDefenseDepartmentLevelIndicators(
+                  myDefenseDepartmentLevels,
+                  "blue",
+                )}</span
+              >
               <span class="inline-block min-w-[3rem] text-right text-blue-400"
                 >${renderTroops(outgoing.troops)}</span
               >
               <span class="mx-1 text-gray-300">vs</span>
               <span class="inline-block min-w-[3rem] text-right text-red-400"
                 >${renderTroops(incoming.troops)}</span
+              >
+              <span class="inline-flex items-center gap-0.5"
+                >${this.renderWarDepartmentLevelIndicators(
+                  opponent
+                    ? activeWarDepartmentLevelsForPlayer(
+                        this.game,
+                        opponent.id(),
+                      )
+                    : 0,
+                  "red",
+                )}</span
+              >
+              <span class="inline-flex items-center gap-0.5"
+                >${this.renderDefenseDepartmentLevelIndicators(
+                  opponentDefenseDepartmentLevels,
+                  "red",
+                )}</span
               >
               <span class="truncate ml-1">${opponent?.name() ?? ""}</span>
               ${retreating
@@ -340,13 +412,77 @@ export class AttacksDisplay extends LitElement implements Layer {
     });
   }
 
+  private renderWarDepartmentLevelIndicators(
+    levels: number,
+    tone: "blue" | "red",
+  ) {
+    if (levels <= 0) {
+      return html``;
+    }
+
+    const tint =
+      tone === "blue"
+        ? "filter: brightness(0) saturate(100%) invert(57%) sepia(84%) saturate(2341%) hue-rotate(190deg) brightness(96%) contrast(95%)"
+        : "filter: brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(4551%) hue-rotate(348deg) brightness(89%) contrast(97%)";
+
+    return html`${Array.from(
+      { length: levels },
+      (_, index) =>
+        html`<img
+          src="${swordIcon}"
+          class="h-3 w-3 inline-block"
+          style="${tint}"
+          alt="War Department level sword ${index + 1}"
+        />`,
+    )}`;
+  }
+
+  private renderDefenseDepartmentLevelIndicators(
+    levels: number,
+    tone: "blue" | "red",
+  ) {
+    if (levels <= 0) {
+      return html``;
+    }
+
+    const tint =
+      tone === "blue"
+        ? "filter: brightness(0) saturate(100%) invert(57%) sepia(84%) saturate(2341%) hue-rotate(190deg) brightness(96%) contrast(95%)"
+        : "filter: brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(4551%) hue-rotate(348deg) brightness(89%) contrast(97%)";
+
+    return html`${Array.from(
+      { length: levels },
+      (_, index) =>
+        html`<img
+          src="${shieldIcon}"
+          class="h-3 w-3 inline-block"
+          style="${tint}"
+          alt="Defense Department level shield ${index + 1}"
+        />`,
+    )}`;
+  }
+
   private renderOutgoingAttacks(
     attacks: AttackUpdate[] = this.outgoingAttacks,
   ) {
     if (attacks.length === 0) return html``;
 
-    return attacks.map(
-      (attack) => html`
+    const myWarDepartmentLevels = this.game.myPlayer()
+      ? activeWarDepartmentLevelsForPlayer(
+          this.game,
+          this.game.myPlayer()!.id(),
+        )
+      : 0;
+
+    return attacks.map((attack) => {
+      const target = this.game.playerBySmallID(attack.targetID) as
+        | PlayerView
+        | undefined;
+      const targetDefenseDepartmentLevels = target
+        ? activeDefenseDepartmentLevelsForPlayer(this.game, target.id())
+        : 0;
+
+      return html`
         <div
           class="flex items-center gap-0.5 w-full bg-gray-800/70 backdrop-blur-xs min-[1200px]:rounded-lg sm:rounded-r-lg px-1.5 py-0.5 overflow-hidden"
         >
@@ -356,14 +492,22 @@ export class AttacksDisplay extends LitElement implements Layer {
                 class="h-4 w-4 inline-block"
                 style="filter: invert(1)"
               />
+              <span class="inline-flex items-center gap-0.5"
+                >${this.renderWarDepartmentLevelIndicators(
+                  myWarDepartmentLevels,
+                  "blue",
+                )}</span
+              >
+              <span class="inline-flex items-center gap-0.5"
+                >${this.renderDefenseDepartmentLevelIndicators(
+                  targetDefenseDepartmentLevels,
+                  "red",
+                )}</span
+              >
               <span class="inline-block min-w-[3rem] text-right"
                 >${renderTroops(attack.troops)}</span
               >
-              <span class="truncate ml-1"
-                >${(
-                  this.game.playerBySmallID(attack.targetID) as PlayerView
-                )?.name()}</span
-              > `,
+              <span class="truncate ml-1">${target?.name()}</span> `,
             onClick: async () => this.attackWarningOnClick(attack),
             className:
               "text-left text-blue-400 inline-flex items-center gap-0.5 lg:gap-1 min-w-0",
@@ -380,12 +524,19 @@ export class AttacksDisplay extends LitElement implements Layer {
                 >(${translateText("events_display.retreating")}...)</span
               >`}
         </div>
-      `,
-    );
+      `;
+    });
   }
 
   private renderOutgoingLandAttacks() {
     if (this.outgoingLandAttacks.length === 0) return html``;
+
+    const myWarDepartmentLevels = this.game.myPlayer()
+      ? activeWarDepartmentLevelsForPlayer(
+          this.game,
+          this.game.myPlayer()!.id(),
+        )
+      : 0;
 
     return this.outgoingLandAttacks.map(
       (landAttack) => html`
@@ -398,6 +549,12 @@ export class AttacksDisplay extends LitElement implements Layer {
                 class="h-4 w-4 inline-block"
                 style="filter: invert(1)"
               />
+              <span class="inline-flex items-center gap-0.5"
+                >${this.renderWarDepartmentLevelIndicators(
+                  myWarDepartmentLevels,
+                  "blue",
+                )}</span
+              >
               <span class="inline-block min-w-[3rem] text-right"
                 >${renderTroops(landAttack.troops)}</span
               >

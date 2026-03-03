@@ -262,6 +262,7 @@ export enum UnitType {
   Extractor = "Extractor",
   Barracks = "Barracks",
   DefenseDepartment = "Defence Department",
+  WarDepartment = "War Department",
   NuclearFacility = "Nuclear Facility",
 }
 
@@ -281,6 +282,7 @@ const _structureTypes: ReadonlySet<UnitType> = new Set([
   UnitType.Extractor,
   UnitType.Barracks,
   UnitType.DefenseDepartment,
+  UnitType.WarDepartment,
   UnitType.NuclearFacility,
 ]);
 
@@ -293,12 +295,14 @@ export function isStructureType(type: UnitType): boolean {
 const _uniqueUpgradeBuildingTypes: ReadonlySet<UnitType> = new Set([
   UnitType.Barracks,
   UnitType.DefenseDepartment,
+  UnitType.WarDepartment,
   UnitType.NuclearFacility,
 ]);
 
 const _uniqueUpgradeBuildingMaxLevels: ReadonlyMap<UnitType, number> = new Map([
   [UnitType.Barracks, 3],
   [UnitType.DefenseDepartment, 3],
+  [UnitType.WarDepartment, 3],
   [UnitType.NuclearFacility, 3],
 ]);
 
@@ -366,6 +370,8 @@ export interface UnitParamsMap {
   [UnitType.Barracks]: Record<string, never>;
 
   [UnitType.DefenseDepartment]: Record<string, never>;
+
+  [UnitType.WarDepartment]: Record<string, never>;
 
   [UnitType.NuclearFacility]: Record<string, never>;
 

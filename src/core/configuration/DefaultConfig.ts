@@ -1,6 +1,9 @@
 import { JWK } from "jose";
 import { z } from "zod";
-import { activeDefenseDepartmentLevels } from "../game/BarracksBonuses";
+import {
+  activeDefenseDepartmentLevels,
+  activeWarDepartmentLevels,
+} from "../game/BarracksBonuses";
 import {
   Difficulty,
   Game,
@@ -211,6 +214,10 @@ export class DefaultConfig implements Config {
 
   barracksTroopMultiplierPerLevel(): number {
     return UPGRADE_TUNING.barracksTroopMultiplierPerLevel;
+  }
+
+  warDepartmentAttackMultiplierPerLevel(): number {
+    return UPGRADE_TUNING.warDepartmentAttackMultiplierPerLevel;
   }
 
   defensePostRange(): number {
@@ -495,6 +502,17 @@ export class DefaultConfig implements Config {
           upgradable: true,
         };
         break;
+      case UnitType.WarDepartment:
+        info = {
+          cost: this.costWrapper(
+            (numUnits: number) =>
+              Math.min(1_000_000, Math.pow(2, numUnits) * 125_000),
+            UnitType.WarDepartment,
+          ),
+          constructionDuration: this.instantBuild() ? 0 : 2 * 10,
+          upgradable: true,
+        };
+        break;
       case UnitType.NuclearFacility:
         info = {
           cost: this.costWrapper(
@@ -683,6 +701,34 @@ export class DefaultConfig implements Config {
     }
 
     if (defender.isPlayer()) {
+      const activeWarDepartments = activeWarDepartmentLevels(gm, attacker);
+      const warDepartmentMultiplier =
+        1 +
+        activeWarDepartments *
+          gm.config().warDepartmentAttackMultiplierPerLevel();
+      let defenseDepartmentMultiplier = 1;
+      const defenderCounterAttackIsOverpowering = attacker.isPlayer()
+        ? defender
+            .outgoingAttacks()
+            .some(
+              (counterAttack) =>
+                counterAttack.isActive() &&
+                counterAttack.target() === attacker &&
+                counterAttack.troops() > attackTroops,
+            )
+        : false;
+
+      if (!defenderCounterAttackIsOverpowering) {
+        const activeDefenseDepartments = activeDefenseDepartmentLevels(
+          gm,
+          defender,
+        );
+        defenseDepartmentMultiplier =
+          1 +
+          activeDefenseDepartments *
+            UPGRADE_TUNING.defenseDepartmentTroopMultiplierPerLevel;
+      }
+
       const defenseSig =
         1 -
         sigmoid(
@@ -706,7 +752,11 @@ export class DefaultConfig implements Config {
       const defenderTroopLoss = defender.troops() / defender.numTilesOwned();
       const traitorMod = defender.isTraitor() ? this.traitorDefenseDebuff() : 1;
       const currentAttackerLoss =
-        within(defender.troops() / attackTroops, 0.6, 2) *
+        within(
+          defender.troops() / (attackTroops * warDepartmentMultiplier),
+          0.6,
+          2,
+        ) *
         mag *
         0.8 *
         largeDefenderAttackDebuff *
@@ -715,11 +765,15 @@ export class DefaultConfig implements Config {
       const altAttackerLoss =
         1.3 * defenderTroopLoss * (mag / 100) * traitorMod;
       const attackerTroopLoss =
-        0.5 * currentAttackerLoss + 0.5 * altAttackerLoss;
+        ((0.5 * currentAttackerLoss + 0.5 * altAttackerLoss) /
+          warDepartmentMultiplier) *
+        defenseDepartmentMultiplier;
 
       return {
         attackerTroopLoss,
-        defenderTroopLoss,
+        defenderTroopLoss:
+          (defenderTroopLoss * warDepartmentMultiplier) /
+          defenseDepartmentMultiplier,
         tilesPerTickUsed:
           within(defender.troops() / (5 * attackTroops), 0.2, 1.5) *
           speed *

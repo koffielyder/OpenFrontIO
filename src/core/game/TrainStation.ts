@@ -85,6 +85,7 @@ export function createTrainStopHandlers(
     [UnitType.Extractor]: new FactoryStopHandler(),
     [UnitType.Barracks]: new FactoryStopHandler(),
     [UnitType.DefenseDepartment]: new FactoryStopHandler(),
+    [UnitType.WarDepartment]: new FactoryStopHandler(),
     [UnitType.NuclearFacility]: new FactoryStopHandler(),
   };
 }
@@ -344,6 +345,7 @@ function uniqueExtractorResourcesConnectedToFactory(
   const capacityByType = new Map<ResourceType, number>();
   let barracksLevels = 0;
   let defenseDepartmentLevels = 0;
+  let warDepartmentLevels = 0;
   let nuclearFacilityLevels = 0;
 
   for (const station of cluster.stations) {
@@ -372,6 +374,13 @@ function uniqueExtractorResourcesConnectedToFactory(
         station.unit.type() === UnitType.NuclearFacility
       ) {
         nuclearFacilityLevels += station.unit.level();
+      }
+      if (
+        station.unit.owner() === owner &&
+        station.unit.isActive() &&
+        station.unit.type() === UnitType.WarDepartment
+      ) {
+        warDepartmentLevels += station.unit.level();
       }
       continue;
     }
@@ -408,9 +417,16 @@ function uniqueExtractorResourcesConnectedToFactory(
     nuclearFacilityLevels,
     oreCapacity,
   );
+  const oreUsedByWarDepartment = resourceUsedForPoweredLevels(
+    warDepartmentLevels,
+    Math.max(0, oreCapacity - oreUsedByNuclearFacility),
+  );
   capacityByType.set(
     ResourceType.Ore,
-    Math.max(0, oreCapacity - oreUsedByNuclearFacility),
+    Math.max(
+      0,
+      oreCapacity - oreUsedByNuclearFacility - oreUsedByWarDepartment,
+    ),
   );
 
   const resourcesPerFactoryLevel = Array.from(

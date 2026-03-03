@@ -138,6 +138,7 @@ export interface Config {
   railroadMaxSize(): number;
   safeFromPiratesCooldownMax(): number;
   barracksTroopMultiplierPerLevel(): number;
+  warDepartmentAttackMultiplierPerLevel(): number;
   defensePostRange(): number;
   defenseDepartmentRangeBonusPerLevel(): number;
   nuclearFacilityNukeRangeBonusPerLevel(): number;

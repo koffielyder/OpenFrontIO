@@ -60,6 +60,7 @@ function stationComponents(game: GameView): UnitView[][] {
       UnitType.Extractor,
       UnitType.Barracks,
       UnitType.DefenseDepartment,
+      UnitType.WarDepartment,
       UnitType.NuclearFacility,
     )
     .filter((unit) => unit.isActive());
@@ -82,6 +83,7 @@ function stationComponents(game: GameView): UnitView[][] {
         UnitType.Extractor,
         UnitType.Barracks,
         UnitType.DefenseDepartment,
+        UnitType.WarDepartment,
         UnitType.NuclearFacility,
       ])
       .filter(
@@ -210,4 +212,75 @@ export function activeNuclearFacilityLevelsForPlayer(
     UnitType.NuclearFacility,
     ResourceType.Ore,
   );
+}
+
+export function activeWarDepartmentLevelsForPlayer(
+  game: GameView,
+  playerId: string,
+): number {
+  const seedKey = resourceSeedKeyFromGameConfig(game.config().gameConfig());
+  let totalActiveLevels = 0;
+
+  for (const componentStations of stationComponents(game)) {
+    const oreCapacity = componentStations
+      .filter(
+        (station) =>
+          station.type() === UnitType.Extractor &&
+          station.owner().id() === playerId,
+      )
+      .reduce((sum, station) => {
+        const resource = getResourceTypeAtTile(game, seedKey, station.tile());
+        return resource === ResourceType.Ore ? sum + station.level() : sum;
+      }, 0);
+
+    const nuclearFacilityLevels = componentStations
+      .filter(
+        (station) =>
+          station.type() === UnitType.NuclearFacility &&
+          station.owner().id() === playerId,
+      )
+      .reduce((sum, station) => sum + station.level(), 0);
+
+    const warDepartmentLevels = componentStations
+      .filter(
+        (station) =>
+          station.type() === UnitType.WarDepartment &&
+          station.owner().id() === playerId,
+      )
+      .reduce((sum, station) => sum + station.level(), 0);
+
+    const oreUsedByNuclearFacilities = resourceUsedForPoweredLevels(
+      nuclearFacilityLevels,
+      oreCapacity,
+    );
+    const oreLeftForWarDepartment = Math.max(
+      0,
+      oreCapacity - oreUsedByNuclearFacilities,
+    );
+
+    totalActiveLevels += activeLevelsFromResource(
+      warDepartmentLevels,
+      oreLeftForWarDepartment,
+    );
+  }
+
+  return totalActiveLevels;
+}
+
+function resourceUsedForPoweredLevels(
+  levels: number,
+  availableResource: number,
+): number {
+  let activeLevels = 0;
+  let resourceUsed = 0;
+  let requiredForNextLevel = 1;
+
+  while (activeLevels < levels && availableResource >= requiredForNextLevel) {
+    availableResource -= requiredForNextLevel;
+    resourceUsed += requiredForNextLevel;
+    activeLevels++;
+    requiredForNextLevel *= 2;
+  }
+
+  return resourceUsed;
 }

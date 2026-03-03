@@ -38,6 +38,7 @@ export const otherUnits = [
   "extr",
   "barr",
   "defd",
+  "ward",
   "nfac",
 ] as const;
 export const OtherUnitSchema = z.enum(otherUnits);
@@ -53,6 +54,7 @@ export type OtherUnitType =
   | UnitType.Extractor
   | UnitType.Barracks
   | UnitType.DefenseDepartment
+  | UnitType.WarDepartment
   | UnitType.NuclearFacility;
 
 export const unitTypeToOtherUnit = {
@@ -66,6 +68,7 @@ export const unitTypeToOtherUnit = {
   [UnitType.Extractor]: "extr",
   [UnitType.Barracks]: "barr",
   [UnitType.DefenseDepartment]: "defd",
+  [UnitType.WarDepartment]: "ward",
   [UnitType.NuclearFacility]: "nfac",
 } as const satisfies Record<OtherUnitType, OtherUnit>;
 

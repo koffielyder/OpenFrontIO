@@ -187,7 +187,8 @@ export class TerritoryLayer implements Layer {
       if (
         update.unitType === UnitType.Factory ||
         update.unitType === UnitType.Extractor ||
-        update.unitType === UnitType.Barracks
+        update.unitType === UnitType.Barracks ||
+        update.unitType === UnitType.WarDepartment
       ) {
         const playersToRefresh = [
           this.game.playerBySmallID(update.ownerID),

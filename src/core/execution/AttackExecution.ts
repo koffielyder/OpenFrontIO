@@ -1,4 +1,5 @@
 import { renderTroops } from "../../client/Utils";
+import { activeWarDepartmentLevels } from "../game/BarracksBonuses";
 import {
   Attack,
   Difficulty,
@@ -31,6 +32,8 @@ export class AttackExecution implements Execution {
 
   // Used to pace opposing-attack battles so they are visible instead of instant.
   private static readonly OPPOSING_ATTACK_BATTLE_STEPS = 8;
+  private static opposingBattleTick = -1;
+  private static processedOpposingBattlePairs = new Set<string>();
 
   constructor(
     private startTroops: number | null = null,
@@ -314,6 +317,13 @@ export class AttackExecution implements Execution {
       return false;
     }
 
+    if (AttackExecution.opposingBattleTick !== this.mg.ticks()) {
+      AttackExecution.opposingBattleTick = this.mg.ticks();
+      AttackExecution.processedOpposingBattlePairs.clear();
+    }
+
+    const pairKey = [this.attack.id(), opposingAttack.id()].sort().join("|");
+
     const myTroops = this.attack.troops();
     const opposingTroops = opposingAttack.troops();
 
@@ -328,17 +338,53 @@ export class AttackExecution implements Execution {
       return false;
     }
 
-    const baseLoss = Math.ceil(
-      Math.min(myTroops, opposingTroops) /
-        AttackExecution.OPPOSING_ATTACK_BATTLE_STEPS,
-    );
-    const loss = Math.max(1, Math.min(baseLoss, myTroops));
+    if (!AttackExecution.processedOpposingBattlePairs.has(pairKey)) {
+      AttackExecution.processedOpposingBattlePairs.add(pairKey);
 
-    this.attack.setTroops(myTroops - loss);
+      const baseLoss = Math.ceil(
+        Math.min(myTroops, opposingTroops) /
+          AttackExecution.OPPOSING_ATTACK_BATTLE_STEPS,
+      );
 
-    if (this.attack.troops() <= 0) {
-      this.attack.delete();
+      const myWarDepartmentMultiplier =
+        1 +
+        activeWarDepartmentLevels(this.mg, this._owner) *
+          this.mg.config().warDepartmentAttackMultiplierPerLevel();
+      const opposingWarDepartmentMultiplier =
+        1 +
+        activeWarDepartmentLevels(this.mg, this.target as Player) *
+          this.mg.config().warDepartmentAttackMultiplierPerLevel();
+
+      const myLoss = Math.max(
+        1,
+        Math.min(Math.ceil(baseLoss / myWarDepartmentMultiplier), myTroops),
+      );
+      const opposingLoss = Math.max(
+        1,
+        Math.min(
+          Math.ceil(baseLoss / opposingWarDepartmentMultiplier),
+          opposingTroops,
+        ),
+      );
+
+      this.attack.setTroops(myTroops - myLoss);
+      opposingAttack.setTroops(opposingTroops - opposingLoss);
+
+      if (this.attack.troops() <= 0) {
+        this.attack.delete();
+        this.active = false;
+      }
+      if (opposingAttack.troops() <= 0 && opposingAttack.isActive()) {
+        opposingAttack.delete();
+      }
+    }
+
+    if (!this.attack.isActive()) {
       this.active = false;
+      return true;
+    }
+    if (!opposingAttack.isActive()) {
+      return false;
     }
 
     // While fronts clash, only the side with more troops should keep advancing.
